@@ -1,9 +1,12 @@
-# PPSK / VLAN / WireGuard Multi-Tunnel System - Project Reference
+# Zonclave - Project Reference
 
+**Product name:** Zonclave (a Developer Zon product)
+**System:** PPSK / VLAN / WireGuard Multi-Tunnel System
+**Repository:** github.com/zilleali/Zonclave
 **Status:** Planning / Phase 1 Scoping
 **Client:** Sancover
 **Developer & Network Engineer:** ZILL E ALI (Developer Zon)
-**Last updated:** 2026-07-12
+**Last updated:** 2026-07-13
 
 This file is the single source of truth for the project. Anyone picking up implementation work, human or AI-assisted, should read it in full before writing any config or code. Section numbers are stable. Do not renumber sections 1 to 22, since the kickoff prompt references them directly. Add new material as new trailing sections.
 
@@ -47,16 +50,64 @@ Admin browser ---> Web Panel (auth-gated) ---> ppsk_groups (source of truth)
 
 ## 3. Hardware / Software Inventory
 
-| Component | Item |
+### 3.1 Deployment locations (3 total, all using OPNsense Protectli FW6E)
+
+| Location | Router | Status |
+|---|---|---|
+| Office SancoMedia Kelder (basement) | Protectli FW6E - OPNsense | Phase 1 start point |
+| Location 2 | Protectli FW6E - OPNsense | Phase 1, after Location 1 validated |
+| Location 3 | Protectli FW6E - OPNsense | Phase 1, after Location 1 validated |
+
+Note: client has 4 x Protectli FW6E units total. The 4th is a spare or future location. Phase 1 covers the 3 active locations.
+
+### 3.2 Per-location hardware
+
+| Component | Item | Notes |
+|---|---|---|
+| Router / Firewall | Protectli Vault FW6E (Intel Quad Core i7, AES-NI) | OPNsense installed, 6 ports |
+| Switch | UniFi USW-16-PoE (confirmed at Kelder) | Tagged VLAN trunk to OPNsense |
+| Access Points | 5 x UniFi U6+ (confirmed at Kelder: AP-Stairs, AP-Back, AP-Room, U6-UK1, U6-UK2) | All healthy and up to date |
+| Wi-Fi Controller | UniFi Cloud Key Gen2 Plus (UCK-G2-Plus) | Manages all APs, central |
+
+### 3.3 Shared infrastructure (central, serves all locations)
+
+| Component | Item | Notes |
+|---|---|---|
+| Zonclave server | Beelink SER5 Pro (AMD Ryzen 7 5800H, 16GB RAM, 500GB NVMe) | Hosts FreeRADIUS + PostgreSQL + Zonclave panel |
+| Server OS | Ubuntu Server 24.04 LTS | Fresh install required (decision updated 2026-07-13, was 22.04) |
+| Server network | VLAN 205, static IP 172.16.74.10 | Management VLAN, see Section 3.4 |
+| VPN | Residential WireGuard peer configs from VPN provider | 5 per router, 15 total for Phase 1 |
+
+### 3.4 Management VLAN (server access)
+
+The Beelink server sits behind OPNsense with no public IP. Access is via a dedicated management VLAN.
+
+| Item | Value |
 |---|---|
-| Wi-Fi Controller | UniFi Cloud Key Gen2 Plus |
-| Switch | UniFi USW-48-PoE |
-| Access Points | 3 x UniFi U6+ |
-| Router / Firewall | OPNsense (already installed and accessible) |
-| VPN | Residential WireGuard peer configs, already provided by VPN provider |
-| Auth server | FreeRADIUS (to be deployed) |
-| Database | MariaDB or PostgreSQL (to be deployed) |
-| Web panel | To be built (see Section 16) |
+| VLAN ID | 205 |
+| Subnet | 172.16.74.0/24 |
+| Gateway (OPNsense) | 172.16.74.1 |
+| Server static IP | 172.16.74.10 |
+| DHCP range | 172.16.74.20 to 172.16.74.50 (for other management devices) |
+
+Remote access for ZILL: WireGuard admin tunnel on OPNsense peering to ZILL's machine. This gives SSH access to 172.16.74.10 (Zonclave server) and web UI access to OPNsense and UniFi controller from anywhere, without any public port-forwarding.
+
+Topology at each location:
+
+```
+Internet
+    |
+Protectli FW6E (OPNsense)
+    |  (trunk: VLAN 205 + VLAN 300-399 + existing VLANs)
+UniFi USW-16-PoE
+    |
+    ├── Cloud Key Gen2+ (management)
+    ├── U6+ AP x5 (broadcasts PPSK SSID)
+    └── Beelink SER5 Pro (VLAN 205, IP 172.16.74.10)
+         - FreeRADIUS :1812/1813
+         - PostgreSQL :5432
+         - Zonclave panel :80
+```
 
 ## 4. Phasing
 
@@ -76,38 +127,56 @@ Admin browser ---> Web Panel (auth-gated) ---> ppsk_groups (source of truth)
 - Extend the installer to drive OPNsense provisioning via API (Section 19 and Section 24)
 - Any additional features requested (see Section 20, Open Items)
 
-## 5. Reserved Network Ranges (decide once, never revisit)
+## 5. Reserved Network Ranges (decided and locked)
 
-The point of reserving this now is that Phase 2 never requires renumbering anything. It only ever fills in the next slot in a range sized for the full 100+ from day one.
+**Decision confirmed 2026-07-13.** The original 101 to 200 block was ruled out after reviewing the client's existing VLAN table at Office SancoMedia Kelder. The following VLANs are already in use across the deployment: 1, 10, 20, 21, 30, 40, 50, 60, 70, 80, 90, 100, 110, 235, 236, 237, 238. Block 300+ is completely free across all three locations.
 
 | Item | Reserved range | Notes |
 |---|---|---|
-| VLAN ID block | **101 to 200** | 100 slots reserved up front, even though Phase 1 only uses 5 to 10 of them |
-| Subnet block (Option A) | **10.101.0.0/24 to 10.200.0.0/24** (one /24 per VLAN, VLAN ID = third octet) | Clean, dedicated block. Do not carve small pieces out of 10.0.0.0/8 ad hoc elsewhere in the network |
-| Subnet block (Option B) | **172.20.101.0/24 to 172.20.200.0/24** | Use this pattern instead if the 10.101 to 200.x block collides with anything already deployed |
+| Management VLAN | **205** | Zonclave server and admin access. Subnet 172.16.74.0/24 |
+| PPSK VLAN ID block | **300 onward** | Phase 1 uses 300 to 304 (5 VLANs, replicated identically on all three routers). Block is open-ended; Phase 2 simply continues from 305 onward |
+| PPSK subnet scheme | **10.30.X.0/24** where X = VLAN minus 300 | VLAN 300 = 10.30.0.0/24, VLAN 301 = 10.30.1.0/24, VLAN 314 = 10.30.14.0/24, and so on |
 
-Both subnet options are documented on purpose so the choice is a single recorded decision, not a rediscovery later. Pick one scheme and use it exclusively. Do not mix.
+Subnet formula is intentional: VLAN 300 - 300 = 0, so 10.30.**0**.0/24. This means a VLAN ID alone tells you the subnet with no lookup needed. Simple, self-documenting, and scales cleanly past 100 groups.
 
-**802.1Q ceiling note:** the standard VLAN ID space runs 1 to 4094. The 101 to 200 block is a deliberate 100-slot reservation for this project, well inside that ceiling, leaving headroom for a second block later if a single site ever needs more than 100 groups.
+**Existing VLAN table (Office SancoMedia Kelder, confirmed from UniFi screenshots):**
 
-**Decision needed before build:** confirm neither block collides with existing management or guest VLANs or subnets already in use on the USW-48-PoE or OPNsense, then record the chosen scheme here.
+| In use | Safe to use |
+|---|---|
+| 1, 10, 20, 21, 30, 40, 50, 60, 70, 80, 90, 100, 110, 235, 236, 237, 238 | 205 (management), 300+ (Zonclave PPSK) |
+
+**Phase 1 PPSK VLAN allocation per router (5 tunnels each):**
+
+| VLAN | Subnet | WireGuard interface | Gateway |
+|---|---|---|---|
+| 300 | 10.30.0.0/24 | WG_VLAN300 | GW_WG_VLAN300 |
+| 301 | 10.30.1.0/24 | WG_VLAN301 | GW_WG_VLAN301 |
+| 302 | 10.30.2.0/24 | WG_VLAN302 | GW_WG_VLAN302 |
+| 303 | 10.30.3.0/24 | WG_VLAN303 | GW_WG_VLAN303 |
+| 304 | 10.30.4.0/24 | WG_VLAN304 | GW_WG_VLAN304 |
+
+The same VLAN IDs and subnet scheme are replicated identically on all three OPNsense routers. Each router has its own 5 WireGuard tunnel interfaces mapped to VLANs 300 to 304, pointing to different residential peer configs. That means 15 tunnel instances total across the 3 routers, but only 5 unique VLAN IDs in use per site. A PPSK therefore selects the same VLAN number at every location, and which residential IP it egresses from depends on which site's router the device is behind.
+
+**802.1Q ceiling note:** VLAN ID space runs 1 to 4094. Starting at 300 leaves 3,794 slots above the block, far more than this project will ever use.
 
 ## 6. Naming Conventions
 
-Descriptive, self-documenting names are non-negotiable at this scale. Six months from now, a bare `wg1` tells you nothing, but `WG_VLAN101` tells you exactly what it is without checking a spreadsheet.
+Descriptive, self-documenting names are non-negotiable at this scale. Six months from now, a bare `wg1` tells you nothing, but `WG_VLAN300` tells you exactly what it is without checking a spreadsheet.
 
 | Item | Convention | Example |
 |---|---|---|
-| VLAN ID | 101 to 200 per Section 5 | VLAN 101 |
-| WireGuard interface name | `WG_VLAN<id>` | `WG_VLAN101` |
-| WireGuard gateway name (OPNsense) | `GW_WG_VLAN<id>` | `GW_WG_VLAN101` |
-| PPSK / group label | `VLAN<id>_<GroupName>` | `VLAN101_GUESTA`, `VLAN102_GROUPB` |
+| VLAN ID | 300 onward per Section 5 | VLAN 300 |
+| WireGuard interface name | `WG_VLAN<id>` | `WG_VLAN300` |
+| WireGuard gateway name (OPNsense) | `GW_WG_VLAN<id>` | `GW_WG_VLAN300` |
+| PPSK / group label | `VLAN<id>_<GroupName>` | `VLAN300_GUESTA`, `VLAN301_GROUPB` |
 | RADIUS username | `ppsk_group###` (zero-padded, matches `ppsk_groups.id`) | `ppsk_group001` |
-| Firewall rule (allow) | `ALLOW_VLAN<id>_TO_<gateway>` | `ALLOW_VLAN101_TO_GW_WG_VLAN101` |
-| Firewall rule (block) | `BLOCK_VLAN<id>_TO_RFC1918` | `BLOCK_VLAN101_TO_RFC1918` |
-| Firewall alias (per VLAN subnet) | `NET_VLAN<id>` | `NET_VLAN101` |
+| Firewall rule (allow) | `ALLOW_VLAN<id>_TO_<gateway>` | `ALLOW_VLAN300_TO_GW_WG_VLAN300` |
+| Firewall rule (block) | `BLOCK_VLAN<id>_TO_RFC1918` | `BLOCK_VLAN300_TO_RFC1918` |
+| Firewall alias (per VLAN subnet) | `NET_VLAN<id>` | `NET_VLAN300` |
+| Management VLAN interface | `MGMT_VLAN205` | Fixed, not per-PPSK |
+| OPNsense VLAN interface | `igb<n>_vlan<id>` | `igb0_vlan300`, `igb0_vlan205` |
 
-Apply this consistently across OPNsense interface descriptions, gateway names, firewall rules and aliases, and the `ppsk_groups` table. The names should match across all of them so a search for `VLAN101` in any system surfaces everything related to it.
+Apply this consistently across OPNsense interface descriptions, gateway names, firewall rules and aliases, and the `ppsk_groups` table. The names should match across all of them so a search for `VLAN300` in any system surfaces everything related to it.
 
 ## 7. Configuration Registry - Authoritative Inventory
 
@@ -116,14 +185,14 @@ This is the most important structural decision in the whole system. **`ppsk_grou
 ```sql
 CREATE TABLE ppsk_groups (
   id SERIAL PRIMARY KEY,
-  label VARCHAR(128) NOT NULL,             -- e.g. "VLAN101_GUESTA"
+  label VARCHAR(128) NOT NULL,             -- e.g. "VLAN300_GUESTA"
   radius_username VARCHAR(64) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,     -- see Section 14 for at-rest handling
   vlan_id INT NOT NULL,
-  subnet VARCHAR(32) NOT NULL,             -- e.g. "10.101.0.0/24"
-  wireguard_interface VARCHAR(32) NOT NULL,-- e.g. "WG_VLAN101"
-  wireguard_gateway VARCHAR(32) NOT NULL,  -- e.g. "GW_WG_VLAN101"
-  opnsense_interface VARCHAR(64),          -- e.g. "igb0_vlan101"
+  subnet VARCHAR(32) NOT NULL,             -- e.g. "10.30.0.0/24"
+  wireguard_interface VARCHAR(32) NOT NULL,-- e.g. "WG_VLAN300"
+  wireguard_gateway VARCHAR(32) NOT NULL,  -- e.g. "GW_WG_VLAN300"
+  opnsense_interface VARCHAR(64),          -- e.g. "igb0_vlan300"
   status VARCHAR(16) NOT NULL DEFAULT 'active',  -- active / disabled / provisioning / error
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
@@ -166,10 +235,10 @@ INSERT INTO radreply (username, attribute, op, value) VALUES
 
 Per VLAN/tunnel group, repeated for each PPSK group (naming per Section 6):
 
-1. **VLAN interface** on the LAN-facing trunk (e.g. `igb0_vlan101`)
-2. **WireGuard instance** (`WG_VLAN101`) using the corresponding residential peer config already provided by the VPN provider
-3. **Gateway** (`GW_WG_VLAN101`) created for that WireGuard interface
-4. **Firewall rule**: source = that VLAN subnet (`NET_VLAN101`), gateway = `GW_WG_VLAN101` (explicit, not default-route reliance; this prevents cross-group leakage)
+1. **VLAN interface** on the LAN-facing trunk (e.g. `igb0_vlan300`)
+2. **WireGuard instance** (`WG_VLAN300`) using the corresponding residential peer config already provided by the VPN provider
+3. **Gateway** (`GW_WG_VLAN300`) created for that WireGuard interface
+4. **Firewall rule**: source = that VLAN subnet (`NET_VLAN300`), gateway = `GW_WG_VLAN300` (explicit, not default-route reliance; this prevents cross-group leakage)
 5. **Failure behavior:** fail-closed by default. See Section 12 for the exact definition.
 
 **Scale note for Phase 2:** 100+ simultaneous WireGuard interfaces on one OPNsense box is a real CPU and interrupt load question. Load-test before committing to the full 100+ figure on existing hardware, and consider whether config should be automated via the OPNsense API or `config.xml` rather than built by hand at that scale (see Section 19 and Section 24).
@@ -180,12 +249,12 @@ Every VLAN gets **two** rule groups, not just the allow rule in Section 9. Witho
 
 **Allow group** (per VLAN):
 ```
-VLAN101 -> Internet -> Gateway GW_WG_VLAN101
+VLAN300 -> Internet -> Gateway GW_WG_VLAN300
 ```
 
 **Block group** (per VLAN):
 ```
-VLAN101 -> RFC1918 (all private address space)   [BLOCKED]
+VLAN300 -> RFC1918 (all private address space)   [BLOCKED]
   Exceptions (explicitly allowed, scoped to specific server IPs):
   - DNS      (to designated resolver, see Section 11)
   - RADIUS   (to FreeRADIUS server)
@@ -196,7 +265,7 @@ VLAN101 -> RFC1918 (all private address space)   [BLOCKED]
 Implementation notes:
 - Block rules reference the `NET_VLAN<id>` alias (Section 6) as source and an `RFC1918` alias as destination, placed **above** any allow-all rule in OPNsense rule ordering (OPNsense evaluates top-down, first match wins).
 - The DNS, RADIUS, and DHCP exceptions are scoped to the *specific* server IPs, not "any," to avoid accidentally re-opening lateral movement.
-- Test this explicitly per Section 21. Do not assume it works because it was configured. Verify a device on VLAN101 genuinely cannot reach VLAN102 or the OPNsense management interface.
+- Test this explicitly per Section 21. Do not assume it works because it was configured. Verify a device on VLAN300 genuinely cannot reach VLAN301 or the OPNsense management interface.
 
 ## 11. DNS Design
 
@@ -208,7 +277,7 @@ Two options:
 
 **Recommendation:** default to option 2 (DNS via tunnel) to match VPN provider guidance, unless there is a specific reason to centralize on Unbound. Whichever is chosen, apply it uniformly across all VLANs and confirm with an actual DNS leak test per group (Section 21). Do not assume the firewall block rules in Section 10 alone prevent leakage, since DNS leaks often happen through the WAN default resolver, not RFC1918 space.
 
-**Decision needed before build:** confirm which option, and record it here once chosen.
+**Decision recorded 2026-07-13:** option 2, DNS through each VLAN's own WireGuard tunnel, applied uniformly across all PPSK VLANs. Confirmed with a per-group DNS leak test per Section 21.
 
 ## 12. Kill-Switch / Fail-Closed Design
 
@@ -217,11 +286,11 @@ Section 4 says "fail closed." This section defines exactly what that means so it
 ```
 WireGuard tunnel goes down (handshake expires / interface drops)
         v
-Associated gateway (GW_WG_VLAN101) becomes unreachable
+Associated gateway (GW_WG_VLAN300) becomes unreachable
         v
 Firewall rule set has NO fallback/default rule permitting that VLAN
 traffic out any other interface (specifically: no implicit or explicit
-rule allowing VLAN101 -> WAN directly)
+rule allowing VLAN300 -> WAN directly)
         v
 Result: all outbound traffic from that VLAN is dropped, not
 silently rerouted through the plain WAN connection
@@ -264,17 +333,21 @@ Do not leave `.conf` files scattered across the filesystem where anyone with she
 1. **Filesystem registry with restricted permissions:**
    ```
    wg_configs/
-     WG_VLAN101.conf
-     WG_VLAN102.conf
+     WG_VLAN300.conf
+     WG_VLAN301.conf
      ...
    ```
    Root-owned, `600` permissions, on the OPNsense host only. Never copied to the FreeRADIUS box, the web panel host, or any backup location without equivalent protection.
 
 2. **Encrypted metadata in the database, keys protected on OPNsense:** store non-sensitive metadata (interface name, gateway, associated VLAN) in `ppsk_groups` or a `wireguard_tunnels` table, while private keys remain only on OPNsense itself, never in the application database at all, encrypted or not. A private key does not need to leave the system that uses it.
 
-**Recommendation:** pattern 2. The panel and database should only ever need to *reference* a tunnel by name (`WG_VLAN101`). They never need to read or display the actual private key. This also limits blast radius if the web panel or its database is ever compromised.
+**Recommendation:** pattern 2. The panel and database should only ever need to *reference* a tunnel by name (`WG_VLAN300`). They never need to read or display the actual private key. This also limits blast radius if the web panel or its database is ever compromised.
+
+**Decision recorded 2026-07-13:** pattern 2. Private keys live on OPNsense only. The panel and database store tunnel names and metadata, never key material.
 
 ## 16. Web Panel Specification (Phase 1)
+
+**Product name:** the panel built in this section is **Zonclave**. It is the customer-facing name for the whole management surface (PPSK, VLAN, and tunnel administration). Use "Zonclave" in the UI title, login page, and any client-facing documentation. Internally, code and file paths may still use `ppsk`/`radius` naming per Section 6, since those names describe the domain concept, not the product brand.
 
 **Purpose:** let the admin manage PPSKs without touching the database or FreeRADIUS config directly.
 
@@ -292,12 +365,12 @@ Three candidate stacks are documented so the choice is explicit. All three can m
 
 Whichever stack is chosen, it reads and writes `ppsk_groups` as the source of truth and derives `radcheck`/`radreply` through the single path in Section 23. The stack choice does not change the data model or the RADIUS boundary.
 
-**Access:** local network only for Phase 1 unless internet-accessible access is explicitly required (open item, see Section 20).
+**Access (decision recorded 2026-07-13):** local network only. The panel is reached via management VLAN 205 or ZILL's WireGuard admin tunnel (Section 3.4). No internet exposure, no public port-forwarding.
 
 ### Page-by-page spec
 
 #### 16.1 Login Page
-- Single admin username/password (or a small user table if multiple admins are needed, TBD per Section 20).
+- Single admin account (decision recorded 2026-07-13). Multi-admin roles remain Phase 2.
 - No self-registration.
 - Session-based auth; timeout after inactivity (default 30 min, configurable).
 
@@ -399,16 +472,27 @@ This is only feasible cleanly because of the service-layer separation in Section
 
 ## 20. Open Items - Need Decisions Before Build Starts
 
-- [ ] Exact VLAN ID range and subnet scheme: 10.101 to 200.x vs 172.20.101 to 200.x (Section 5)
-- [ ] Panel hosting: local-network-only vs internet-accessible with login (Section 16)
-- [ ] Panel stack final choice: Laravel + Filament (recommended) vs lightweight PHP vs Python/Flask (Section 16)
-- [ ] DNS design: OPNsense Unbound vs DNS-through-tunnel per VLAN (Section 11)
-- [ ] Storage pattern for WireGuard configs: filesystem registry vs DB metadata + OPNsense-only keys (Section 15)
-- [ ] Single admin login vs multiple admin accounts for the panel (Section 16.1)
-- [ ] Confirm the installed UniFi Network application version supports RADIUS-based Private PSK on the SSID (verify against current UniFi docs at build time)
-- [ ] Where FreeRADIUS will be hosted (spare on-site hardware, VM, small dedicated box)
-- [ ] Phase 1 tunnel count: confirmed at 5 to 10, or a different number preferred for initial validation
-- [ ] Installer target OS and who runs it (Section 24)
+**Resolved (closed):**
+- [x] VLAN ID range: **300 onward**, subnet 10.30.X.0/24 (VLAN minus 300 = X). Confirmed 2026-07-13 after reviewing existing VLAN table at Office SancoMedia Kelder.
+- [x] Panel stack: **Laravel + Filament**
+- [x] Database: **PostgreSQL**
+- [x] Installer OS: **Ubuntu Server 24.04 LTS** (updated 2026-07-13, was 22.04; 24.04 is what will be installed on the Beelink)
+- [x] Server: Beelink SER5 Pro, VLAN 205, static IP 172.16.74.10
+- [x] Management VLAN: **205**, subnet 172.16.74.0/24
+- [x] FreeRADIUS hosting: Beelink SER5 Pro, co-located with the panel
+- [x] Phase 1 tunnel count: **5 per router, 15 total** (3 routers x 5 tunnels)
+- [x] Scope: **3 locations**, all Protectli FW6E / OPNsense. 4th unit is spare.
+- [x] Project name: **Zonclave**
+- [x] Budget: **$600 total** for all three routers
+
+- [x] DNS design: **DNS-through-tunnel per VLAN** (Section 11). Decided 2026-07-13.
+- [x] Storage pattern for WireGuard configs: **pattern 2, keys stay on OPNsense only** (Section 15). Decided 2026-07-13.
+- [x] Panel admin accounts: **single admin** (Section 16.1). Decided 2026-07-13.
+- [x] Panel access: **local network only**, via VLAN 205 / WireGuard admin tunnel (Section 16). Decided 2026-07-13.
+
+**Still open (resolve before or during first session):**
+- [ ] Confirm UniFi Network application version supports RADIUS-based Private PSK (ZILL verifies over RustDesk during first access session)
+- [ ] Confirm the 5 WireGuard peer configs per router are ready for all 3 locations (15 total) before OPNsense config begins
 
 ## 21. Acceptance Testing (Phase 1)
 
@@ -423,7 +507,7 @@ Both manual end-to-end acceptance and automated tests are required. The manual l
 5. Disable PPSK #1 via the panel and confirm that credential no longer authenticates.
 6. Delete a PPSK via the panel and confirm it is removed from FreeRADIUS and no longer usable.
 7. Kill WireGuard tunnel #1 and confirm the exact fail-closed behavior in Section 12 (no internet, no silent fallback to WAN; verify the client public IP is *not* the real WAN IP).
-8. From a device on VLAN101, attempt to reach a device on VLAN102 and the OPNsense management interface, and confirm both are blocked per Section 10.
+8. From a device on VLAN300, attempt to reach a device on VLAN301 and the OPNsense management interface, and confirm both are blocked per Section 10.
 9. Run a DNS leak test from a connected device and confirm queries follow the design chosen in Section 11.
 10. Confirm every action in tests 1 to 6 produced a corresponding row in `admin_log` (Section 17).
 
@@ -497,7 +581,7 @@ The installer configures one host. It does **not** configure OPNsense (VLAN inte
 7. Post-install: print the panel URL, admin login, shared secret, and the exact next manual steps for OPNsense and UniFi. Write a full install log for support.
 
 ### 24.4 Design rules for the script
-- Target and pin one OS (recommended: Ubuntu 22.04 LTS or Debian 12). State the requirement plainly; do not attempt to support every distro in Phase 1, or one-click reliability breaks.
+- Target and pin one OS: **Ubuntu Server 24.04 LTS** (decision updated 2026-07-13; PHP 8.3 ships in the 24.04 base repos, so no third-party PPA is needed). State the requirement plainly; do not attempt to support every distro in Phase 1, or one-click reliability breaks.
 - `set -euo pipefail`, root and OS checks up front, idempotent functions, clear stage logging.
 - Modular internal structure even though it ships as one blob: `preflight`, `install_db`, `install_freeradius`, `deploy_panel`, `configure_services`, `self_check`, `summary`.
 - Minimal input: prompt only for the essentials (UniFi/AP subnet, admin email) or read a small answers file; generate sane defaults for the rest.

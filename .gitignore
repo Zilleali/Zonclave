@@ -1,0 +1,12 @@
+# .gitignore
+*.env
+opnsense/wg_configs/*.conf
+**/private_key*
+**/*.pem
+
+# installer secrets and artifacts
+installer/installer.conf
+**/install-summary.txt
+*.enc
+*.run
+#CLAUDE.md

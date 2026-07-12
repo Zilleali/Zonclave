@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 #
-# PPSK / VLAN / WireGuard System - Auth + Panel Node Installer
-# Target OS : Ubuntu 22.04 LTS
-# Scope     : PostgreSQL + FreeRADIUS + Laravel/Filament web panel on ONE host.
-#             Does NOT configure OPNsense or UniFi (separate appliances, Phase 1
-#             manual step). See CLAUDE.md Section 24.
+# Zonclave - Auth + Panel Node Installer
+# System    : PPSK / VLAN / WireGuard Multi-Tunnel System
+# Target OS : Ubuntu Server 24.04 LTS
+# Scope     : PostgreSQL + FreeRADIUS + Laravel/Filament web panel (Zonclave)
+#             on ONE host. Does NOT configure OPNsense or UniFi (separate
+#             appliances, Phase 1 manual step). See CLAUDE.md Section 24.
 #
 # Author    : ZILL E ALI (Developer Zon)
 # Client    : Sancover
+# Repo      : github.com/zilleali/Zonclave
 #
 # Design    : idempotent, modular, fail-closed. Re-running is safe.
 #             All secrets are generated at runtime, never hardcoded, shown once.
@@ -36,7 +38,7 @@ readonly LOG_FILE="/var/log/ppsk-install.log"
 # so the infrastructure can be validated before the app is built.
 PANEL_SOURCE="${PANEL_SOURCE:-${SCRIPT_DIR}/panel}"
 PANEL_GIT_URL="${PANEL_GIT_URL:-}"          # optional: overrides local dir if set
-PANEL_DIR="/opt/ppsk-panel"
+PANEL_DIR="/opt/zonclave"
 
 # Database defaults (override in installer.conf)
 DB_NAME="${DB_NAME:-ppsk}"
@@ -52,7 +54,8 @@ ADMIN_EMAIL="${ADMIN_EMAIL:-}"
 # Non-interactive mode (for me-run automation via SSH)
 ASSUME_YES="${ASSUME_YES:-false}"
 
-# FreeRADIUS paths on Ubuntu 22.04
+# FreeRADIUS paths on Ubuntu 24.04 (Debian packaging keeps the 3.0 dir name
+# even for FreeRADIUS 3.2.x)
 readonly FR_DIR="/etc/freeradius/3.0"
 readonly FR_SQL_SCHEMA="${FR_DIR}/mods-config/sql/main/postgresql/schema.sql"
 
@@ -94,16 +97,16 @@ preflight() {
 
   [ "$(id -u)" -eq 0 ] || die "Run as root (use sudo)."
 
-  # OS check: Ubuntu 22.04 only, per the supported target.
+  # OS check: Ubuntu 24.04 only, per the supported target (Section 24.4).
   if [ -r /etc/os-release ]; then
     . /etc/os-release
-    if [ "${ID:-}" != "ubuntu" ] || [ "${VERSION_ID:-}" != "22.04" ]; then
-      die "Unsupported OS: ${PRETTY_NAME:-unknown}. This installer targets Ubuntu 22.04 LTS."
+    if [ "${ID:-}" != "ubuntu" ] || [ "${VERSION_ID:-}" != "24.04" ]; then
+      die "Unsupported OS: ${PRETTY_NAME:-unknown}. This installer targets Ubuntu Server 24.04 LTS."
     fi
   else
     die "Cannot read /etc/os-release. Aborting."
   fi
-  ok "Ubuntu 22.04 LTS confirmed."
+  ok "Ubuntu 24.04 LTS confirmed."
 
   # Internet reachability (packages are pulled during install).
   if ! curl -fsS --max-time 8 https://deb.debian.org >/dev/null 2>&1 \
@@ -171,14 +174,7 @@ install_dependencies() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y >>"$LOG_FILE" 2>&1
 
-  # PHP 8.3 is not in the Ubuntu 22.04 base repos (which ship 8.1), so add the
-  # ondrej/php PPA. Laravel + Filament require PHP 8.2+.
-  if ! php -v 2>/dev/null | grep -q "PHP 8.3"; then
-    apt-get install -y software-properties-common >>"$LOG_FILE" 2>&1
-    add-apt-repository -y ppa:ondrej/php >>"$LOG_FILE" 2>&1
-    apt-get update -y >>"$LOG_FILE" 2>&1
-  fi
-
+  # Ubuntu 24.04 ships PHP 8.3 in the base repos; no third-party PPA needed.
   apt-get install -y \
     postgresql postgresql-contrib \
     freeradius freeradius-postgresql freeradius-utils \
@@ -245,6 +241,7 @@ CREATE TABLE IF NOT EXISTS ppsk_groups (
 );
 CREATE INDEX IF NOT EXISTS idx_ppsk_groups_vlan   ON ppsk_groups (vlan_id);
 CREATE INDEX IF NOT EXISTS idx_ppsk_groups_status ON ppsk_groups (status);
+CREATE INDEX IF NOT EXISTS idx_ppsk_groups_label  ON ppsk_groups (label);
 
 CREATE TABLE IF NOT EXISTS admin_log (
   id SERIAL PRIMARY KEY,
@@ -254,6 +251,9 @@ CREATE TABLE IF NOT EXISTS admin_log (
   target_ppsk_id INT,
   detail TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_admin_log_ts     ON admin_log (ts);
+CREATE INDEX IF NOT EXISTS idx_admin_log_target ON admin_log (target_ppsk_id);
+CREATE INDEX IF NOT EXISTS idx_admin_log_action ON admin_log (action);
 SQL
   sudo -u postgres psql -d "${DB_NAME}" -c \
     "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${DB_USER};
@@ -270,28 +270,39 @@ seed_test_groups() {
   # password_hash column too. Real entries created via the panel are encrypted
   # at rest per CLAUDE.md Section 14; the panel owns that encryption.
   local rows=(
-    "ppsk_group001|VLAN101_TEST_A|101|10.101.0.0/24|WG_VLAN101|GW_WG_VLAN101|${SEED_PSK_1}"
-    "ppsk_group002|VLAN102_TEST_B|102|10.102.0.0/24|WG_VLAN102|GW_WG_VLAN102|${SEED_PSK_2}"
+    "ppsk_group001|VLAN300_TEST_A|300|10.30.0.0/24|WG_VLAN300|GW_WG_VLAN300|${SEED_PSK_1}"
+    "ppsk_group002|VLAN301_TEST_B|301|10.30.1.0/24|WG_VLAN301|GW_WG_VLAN301|${SEED_PSK_2}"
   )
   for r in "${rows[@]}"; do
     IFS='|' read -r user label vlan subnet wgif wggw psk <<<"$r"
-    sudo -u postgres psql -d "${DB_NAME}" >>"$LOG_FILE" 2>&1 <<SQL
+    # Registry row and derived RADIUS rows commit or roll back together
+    # (transactional projection, Section 23.1).
+    sudo -u postgres psql -d "${DB_NAME}" -v ON_ERROR_STOP=1 >>"$LOG_FILE" 2>&1 <<SQL
+BEGIN;
+
 INSERT INTO ppsk_groups (label, radius_username, password_hash, vlan_id, subnet, wireguard_interface, wireguard_gateway, status)
 VALUES ('${label}', '${user}', '${psk}', ${vlan}, '${subnet}', '${wgif}', '${wggw}', 'active')
 ON CONFLICT (radius_username) DO NOTHING;
 
 INSERT INTO radcheck (username, attribute, op, value)
-VALUES ('${user}', 'Cleartext-Password', ':=', '${psk}')
-ON CONFLICT DO NOTHING;
+SELECT '${user}', 'Cleartext-Password', ':=', '${psk}'
+WHERE NOT EXISTS (SELECT 1 FROM radcheck WHERE username = '${user}' AND attribute = 'Cleartext-Password');
 
-INSERT INTO radreply (username, attribute, op, value) VALUES
+INSERT INTO radreply (username, attribute, op, value)
+SELECT v.username, v.attribute, v.op, v.value
+FROM (VALUES
   ('${user}', 'Tunnel-Private-Group-Id', ':=', '${vlan}'),
-  ('${user}', 'Tunnel-Type', ':=', 'VLAN'),
-  ('${user}', 'Tunnel-Medium-Type', ':=', 'IEEE-802')
-ON CONFLICT DO NOTHING;
+  ('${user}', 'Tunnel-Type',             ':=', 'VLAN'),
+  ('${user}', 'Tunnel-Medium-Type',      ':=', 'IEEE-802')
+) AS v(username, attribute, op, value)
+WHERE NOT EXISTS (
+  SELECT 1 FROM radreply r WHERE r.username = v.username AND r.attribute = v.attribute
+);
+
+COMMIT;
 SQL
   done
-  ok "Seeded 2 test PPSK groups (VLAN 101, VLAN 102)."
+  ok "Seeded 2 test PPSK groups (VLAN 300, VLAN 301)."
 }
 
 # ---------------------------------------------------------------------------
@@ -456,7 +467,7 @@ configure_services() {
   local server_ip
   server_ip="$(hostname -I | awk '{print $1}')"
 
-  cat >/etc/nginx/sites-available/ppsk-panel <<EOF
+  cat >/etc/nginx/sites-available/zonclave <<EOF
 server {
     listen 80;
     server_name ${server_ip} _;
@@ -481,7 +492,7 @@ server {
 }
 EOF
 
-  ln -sf /etc/nginx/sites-available/ppsk-panel /etc/nginx/sites-enabled/ppsk-panel
+  ln -sf /etc/nginx/sites-available/zonclave /etc/nginx/sites-enabled/zonclave
   rm -f /etc/nginx/sites-enabled/default
 
   nginx -t >>"$LOG_FILE" 2>&1 || die "nginx config test failed. See ${LOG_FILE}."
@@ -534,7 +545,8 @@ summary() {
   # Root-only summary file.
   umask 077
   cat >"$SUMMARY_FILE" <<EOF
-PPSK / VLAN / WireGuard - Install Summary
+Zonclave - Install Summary
+PPSK / VLAN / WireGuard - Auth + Panel Node
 Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 Panel URL           : http://${ip}/
@@ -550,8 +562,8 @@ Database            : ${DB_NAME} (PostgreSQL, localhost)
 DB user             : ${DB_USER}
 DB password         : ${DB_PASSWORD}
 
-Seed PPSK #1        : user ppsk_group001  VLAN 101  psk ${SEED_PSK_1}
-Seed PPSK #2        : user ppsk_group002  VLAN 102  psk ${SEED_PSK_2}
+Seed PPSK #1        : user ppsk_group001  VLAN 300  psk ${SEED_PSK_1}
+Seed PPSK #2        : user ppsk_group002  VLAN 301  psk ${SEED_PSK_2}
 
 Panel deployed      : ${PANEL_DEPLOYED:-false}
 EOF

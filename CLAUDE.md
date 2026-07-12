@@ -22,7 +22,7 @@ This project has two centers of gravity that carry equal weight. The **network a
 
 ## 2. Architecture
 
-```
+```text
 Devices
   |  (connect to SSID, enter unique PPSK password)
   v
@@ -42,7 +42,7 @@ Internet (device traffic appears to originate from that tunnel's residential IP)
 
 **Management plane (separate from data plane):**
 
-```
+```text
 Admin browser ---> Web Panel (auth-gated) ---> ppsk_groups (source of truth)
                                             |-> FreeRADIUS DB (radcheck/radreply, generated)
                                             |-> (Phase 2) OPNsense API for tunnel/VLAN provisioning
@@ -53,7 +53,7 @@ Admin browser ---> Web Panel (auth-gated) ---> ppsk_groups (source of truth)
 ### 3.1 Deployment locations (3 total, all using OPNsense Protectli FW6E)
 
 | Location | Router | Status |
-|---|---|---|
+| --- | --- | --- |
 | Office SancoMedia Kelder (basement) | Protectli FW6E - OPNsense | Phase 1 start point |
 | Location 2 | Protectli FW6E - OPNsense | Phase 1, after Location 1 validated |
 | Location 3 | Protectli FW6E - OPNsense | Phase 1, after Location 1 validated |
@@ -63,7 +63,7 @@ Note: client has 4 x Protectli FW6E units total. The 4th is a spare or future lo
 ### 3.2 Per-location hardware
 
 | Component | Item | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Router / Firewall | Protectli Vault FW6E (Intel Quad Core i7, AES-NI) | OPNsense installed, 6 ports |
 | Switch | UniFi USW-16-PoE (confirmed at Kelder) | Tagged VLAN trunk to OPNsense |
 | Access Points | 5 x UniFi U6+ (confirmed at Kelder: AP-Stairs, AP-Back, AP-Room, U6-UK1, U6-UK2) | All healthy and up to date |
@@ -72,7 +72,7 @@ Note: client has 4 x Protectli FW6E units total. The 4th is a spare or future lo
 ### 3.3 Shared infrastructure (central, serves all locations)
 
 | Component | Item | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Zonclave server | Beelink SER5 Pro (AMD Ryzen 7 5800H, 16GB RAM, 500GB NVMe) | Hosts FreeRADIUS + PostgreSQL + Zonclave panel |
 | Server OS | Ubuntu Server 24.04 LTS | Fresh install required (decision updated 2026-07-13, was 22.04) |
 | Server network | VLAN 205, static IP 172.16.74.10 | Management VLAN, see Section 3.4 |
@@ -83,7 +83,7 @@ Note: client has 4 x Protectli FW6E units total. The 4th is a spare or future lo
 The Beelink server sits behind OPNsense with no public IP. Access is via a dedicated management VLAN.
 
 | Item | Value |
-|---|---|
+| --- | --- |
 | VLAN ID | 205 |
 | Subnet | 172.16.74.0/24 |
 | Gateway (OPNsense) | 172.16.74.1 |
@@ -94,7 +94,7 @@ Remote access for ZILL: WireGuard admin tunnel on OPNsense peering to ZILL's mac
 
 Topology at each location:
 
-```
+```text
 Internet
     |
 Protectli FW6E (OPNsense)
@@ -112,6 +112,7 @@ UniFi USW-16-PoE
 ## 4. Phasing
 
 ### Phase 1 - MVP (build first, lowest cost)
+
 - FreeRADIUS installed, database-backed, PPSK/VLAN assignment working
 - UniFi SSID authenticating against FreeRADIUS, confirmed VLAN tagging works for a real test device
 - OPNsense configured with **5 to 10** WireGuard tunnels and matching VLANs, full chain validated end-to-end (device connects, correct VLAN, correct public IP)
@@ -122,6 +123,7 @@ UniFi USW-16-PoE
 **Definition of done for Phase 1:** A test device can connect using any of the provisioned PPSKs, land in the correct VLAN, and its outbound public IP matches the residential IP of the WireGuard tunnel assigned to that PPSK. Verified per-group via an external "what is my IP" check.
 
 ### Phase 2 - Scale-out (once budget allows)
+
 - Expand from 5 to 10 up to 100+ PPSK/VLAN/tunnel groups (repeat the Phase 1 pattern; scripting/automation of OPNsense config strongly recommended at this point)
 - Add device activity logs to the panel (who authenticated, when, which PPSK, session duration/data use)
 - Extend the installer to drive OPNsense provisioning via API (Section 19 and Section 24)
@@ -132,7 +134,7 @@ UniFi USW-16-PoE
 **Decision confirmed 2026-07-13.** The original 101 to 200 block was ruled out after reviewing the client's existing VLAN table at Office SancoMedia Kelder. The following VLANs are already in use across the deployment: 1, 10, 20, 21, 30, 40, 50, 60, 70, 80, 90, 100, 110, 235, 236, 237, 238. Block 300+ is completely free across all three locations.
 
 | Item | Reserved range | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Management VLAN | **205** | Zonclave server and admin access. Subnet 172.16.74.0/24 |
 | PPSK VLAN ID block | **300 onward** | Phase 1 uses 300 to 304 (5 VLANs, replicated identically on all three routers). Block is open-ended; Phase 2 simply continues from 305 onward |
 | PPSK subnet scheme | **10.30.X.0/24** where X = VLAN minus 300 | VLAN 300 = 10.30.0.0/24, VLAN 301 = 10.30.1.0/24, VLAN 314 = 10.30.14.0/24, and so on |
@@ -142,13 +144,13 @@ Subnet formula is intentional: VLAN 300 - 300 = 0, so 10.30.**0**.0/24. This mea
 **Existing VLAN table (Office SancoMedia Kelder, confirmed from UniFi screenshots):**
 
 | In use | Safe to use |
-|---|---|
+| --- | --- |
 | 1, 10, 20, 21, 30, 40, 50, 60, 70, 80, 90, 100, 110, 235, 236, 237, 238 | 205 (management), 300+ (Zonclave PPSK) |
 
 **Phase 1 PPSK VLAN allocation per router (5 tunnels each):**
 
 | VLAN | Subnet | WireGuard interface | Gateway |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 300 | 10.30.0.0/24 | WG_VLAN300 | GW_WG_VLAN300 |
 | 301 | 10.30.1.0/24 | WG_VLAN301 | GW_WG_VLAN301 |
 | 302 | 10.30.2.0/24 | WG_VLAN302 | GW_WG_VLAN302 |
@@ -164,7 +166,7 @@ The same VLAN IDs and subnet scheme are replicated identically on all three OPNs
 Descriptive, self-documenting names are non-negotiable at this scale. Six months from now, a bare `wg1` tells you nothing, but `WG_VLAN300` tells you exactly what it is without checking a spreadsheet.
 
 | Item | Convention | Example |
-|---|---|---|
+| --- | --- | --- |
 | VLAN ID | 300 onward per Section 5 | VLAN 300 |
 | WireGuard interface name | `WG_VLAN<id>` | `WG_VLAN300` |
 | WireGuard gateway name (OPNsense) | `GW_WG_VLAN<id>` | `GW_WG_VLAN300` |
@@ -200,6 +202,7 @@ CREATE TABLE ppsk_groups (
 ```
 
 Notes:
+
 - `password_hash` column: FreeRADIUS needs the cleartext value to hand to the AP for PSK derivation, so the real design is "encrypted at rest, decrypted only at the point FreeRADIUS needs it," not a one-way hash. This is a build-time decision that affects the `radcheck` write path. See Section 14.
 - `status` is broader than a boolean `enabled`. It also lets Phase 2 automation track `provisioning` or `error` states when OPNsense config is created via API instead of by hand.
 - The FreeRADIUS `radcheck`/`radreply` rows (Section 8) and the OPNsense objects (Section 9) are **generated artifacts** of a `ppsk_groups` row, not independent sources of truth. If they ever disagree with `ppsk_groups`, `ppsk_groups` wins and the others get regenerated.
@@ -208,6 +211,7 @@ Notes:
 ## 8. FreeRADIUS Design
 
 ### 8.1 Hosting
+
 Small VM or LXC container, 1 vCPU and 512MB to 1GB RAM is sufficient for 100 concurrent RADIUS clients. Can run on-site (no VPS required) if there is spare capacity on existing hardware.
 
 ### 8.2 Database schema (standard FreeRADIUS `rlm_sql` tables, generated from `ppsk_groups`)
@@ -227,6 +231,7 @@ INSERT INTO radreply (username, attribute, op, value) VALUES
 "Disable" a PPSK means set `ppsk_groups.status = 'disabled'`, which removes or withholds the corresponding `radcheck` row. `radcheck`/`radreply` are never edited directly. Always through the panel writing to `ppsk_groups` first, per Section 7 and Section 23.
 
 ### 8.3 UniFi integration
+
 - Confirm the SSID security mode supports RADIUS-based Private PSK / Identity PSK on the installed Network application version. This has shifted across UniFi firmware versions, so verify against current UniFi docs at build time rather than assuming a fixed UI path.
 - Point the SSID RADIUS profile at the FreeRADIUS server IP and shared secret.
 - Confirm the trunk port from USW-48-PoE to OPNsense passes all PPSK VLANs tagged.
@@ -248,12 +253,14 @@ Per VLAN/tunnel group, repeated for each PPSK group (naming per Section 6):
 Every VLAN gets **two** rule groups, not just the allow rule in Section 9. Without the block rule, a device on one PPSK VLAN could reach another VLAN's devices or the internal network if any route happens to exist. This must be explicitly closed, not assumed away.
 
 **Allow group** (per VLAN):
-```
+
+```text
 VLAN300 -> Internet -> Gateway GW_WG_VLAN300
 ```
 
 **Block group** (per VLAN):
-```
+
+```text
 VLAN300 -> RFC1918 (all private address space)   [BLOCKED]
   Exceptions (explicitly allowed, scoped to specific server IPs):
   - DNS      (to designated resolver, see Section 11)
@@ -263,6 +270,7 @@ VLAN300 -> RFC1918 (all private address space)   [BLOCKED]
 ```
 
 Implementation notes:
+
 - Block rules reference the `NET_VLAN<id>` alias (Section 6) as source and an `RFC1918` alias as destination, placed **above** any allow-all rule in OPNsense rule ordering (OPNsense evaluates top-down, first match wins).
 - The DNS, RADIUS, and DHCP exceptions are scoped to the *specific* server IPs, not "any," to avoid accidentally re-opening lateral movement.
 - Test this explicitly per Section 21. Do not assume it works because it was configured. Verify a device on VLAN300 genuinely cannot reach VLAN301 or the OPNsense management interface.
@@ -272,6 +280,7 @@ Implementation notes:
 Decide this now. Retrofitting it after tunnels are live risks a DNS-leak period where queries go out unencrypted or through the wrong path.
 
 Two options:
+
 1. **OPNsense Unbound (local resolver):** VLANs resolve via OPNsense itself, which then forwards upstream. Simpler to manage centrally, but the DNS query still exits via whatever OPNsense upstream path is unless explicitly routed through each WireGuard tunnel too.
 2. **DNS through the WireGuard tunnel:** each VLAN's DNS queries are forced through its own WireGuard tunnel to the VPN provider DNS (or a resolver reachable only via that tunnel). This is what most residential VPN providers recommend, specifically to prevent DNS leaks that would reveal the real ISP or location despite the tunneled traffic.
 
@@ -283,7 +292,7 @@ Two options:
 
 Section 4 says "fail closed." This section defines exactly what that means so it is unambiguous at implementation time.
 
-```
+```text
 WireGuard tunnel goes down (handshake expires / interface drops)
         v
 Associated gateway (GW_WG_VLAN300) becomes unreachable
@@ -331,12 +340,14 @@ Every PPSK is randomly generated by the system, never manually chosen by the adm
 Do not leave `.conf` files scattered across the filesystem where anyone with shell access can read every provider private key at once. Two acceptable patterns:
 
 1. **Filesystem registry with restricted permissions:**
-   ```
+
+   ```text
    wg_configs/
      WG_VLAN300.conf
      WG_VLAN301.conf
      ...
    ```
+
    Root-owned, `600` permissions, on the OPNsense host only. Never copied to the FreeRADIUS box, the web panel host, or any backup location without equivalent protection.
 
 2. **Encrypted metadata in the database, keys protected on OPNsense:** store non-sensitive metadata (interface name, gateway, associated VLAN) in `ppsk_groups` or a `wireguard_tunnels` table, while private keys remain only on OPNsense itself, never in the application database at all, encrypted or not. A private key does not need to leave the system that uses it.
@@ -356,7 +367,7 @@ Do not leave `.conf` files scattered across the filesystem where anyone with she
 Three candidate stacks are documented so the choice is explicit. All three can meet Phase 1 function. They differ in build effort, installer footprint, and long-term maintainability.
 
 | Option | Strength | Trade-off | Installer footprint |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Laravel + Filament** (recommended) | Fastest to build for a Laravel developer; admin CRUD UI, auth, and validation come for free; cleanest long-term maintenance | Heavier install (composer + node asset build) | Larger, but fine on a pinned OS in the Section 24 installer |
 | **Lightweight PHP** (plain PHP + PDO) | Smallest runtime footprint; leanest installer | More manual work (hand-built UI, auth, validation) | Smallest |
 | **Python / Flask** | Option if Python is preferred over PHP | Most glue work for an admin UI; a second language in a PHP/RADIUS stack | Medium |
@@ -370,11 +381,13 @@ Whichever stack is chosen, it reads and writes `ppsk_groups` as the source of tr
 ### Page-by-page spec
 
 #### 16.1 Login Page
+
 - Single admin account (decision recorded 2026-07-13). Multi-admin roles remain Phase 2.
 - No self-registration.
 - Session-based auth; timeout after inactivity (default 30 min, configurable).
 
 #### 16.2 Dashboard / PPSK List (home page)
+
 - Table of all PPSK groups: Label, RADIUS username, VLAN ID, WireGuard tunnel, Status (active/disabled), Created date.
 - Search/filter by label or VLAN.
 - Action buttons per row: Edit, Enable/Disable toggle, Delete (with confirmation).
@@ -383,7 +396,9 @@ Whichever stack is chosen, it reads and writes `ppsk_groups` as the source of tr
 - No polling. Live data loads on demand only (manual refresh or explicit button). Do not add timed auto-refresh.
 
 #### 16.3 Create / Edit PPSK Form
+
 Fields:
+
 - Label (free text, human-friendly name, follows the `VLAN<id>_<GroupName>` convention from Section 6)
 - Password: **auto-generated only**, per Section 14 (no manual entry field; shown once on creation with a "copy" action)
 - VLAN ID: dropdown populated from the pre-provisioned VLAN list (Phase 1: 5 to 10 options)
@@ -393,14 +408,17 @@ Fields:
 On submit: writes/updates `ppsk_groups` (Section 7) first, which in turn generates the corresponding `radcheck`/`radreply` rows (Section 8.2) through the Section 23 path. Change takes effect immediately (FreeRADIUS reads from DB live; no service restart required for standard `rlm_sql` config). Every create/edit/delete/enable/disable action is logged per Section 17.
 
 #### 16.4 Delete Confirmation
+
 - Standard "Are you sure?" modal before removing a PPSK's DB rows.
 - Deleting a PPSK does not delete or affect the underlying VLAN/WireGuard interface config on OPNsense (those are managed separately in Phase 1; only the credential mapping is removed).
 
 #### 16.5 Settings Page (minimal, Phase 1)
+
 - Change admin password.
 - (Phase 2 candidate, not required Phase 1: manage the list of available VLAN/tunnel pairs from the UI instead of a fixed pre-provisioned list.)
 
 ### Phase 2 additions to the panel (not built in Phase 1, listed for planning only)
+
 - Device activity log page: which device/MAC authenticated with which PPSK, timestamp, session duration, data used (requires RADIUS accounting, `radacct` table).
 - Per-tunnel health status (Section 13) surfaced as a dashboard column.
 - Bulk PPSK import/export (CSV).
@@ -412,6 +430,7 @@ On submit: writes/updates `ppsk_groups` (Section 7) first, which in turn generat
 Lightweight but built from day one. Cheap to add now, and the first thing you will want when troubleshooting "why did this PPSK stop working."
 
 Log at minimum:
+
 - Admin login (success/failure)
 - PPSK created
 - PPSK deleted
@@ -425,7 +444,7 @@ A simple `admin_log` table (`id`, `timestamp`, `admin_user`, `action`, `target_p
 
 Even though Phase 1 writes "directly" to the database in the sense that there is no OPNsense API integration yet, the application must not embed raw SQL throughout the UI/route layer. Use a layered structure from the start:
 
-```
+```text
 Browser
    v
 Routes           (HTTP endpoints)
@@ -448,7 +467,7 @@ This maps cleanly onto whichever stack is chosen in Section 16. In Laravel this 
 
 Once scaling beyond the initial 5 to 10 tunnels, introduce a provisioning workflow that turns "create a PPSK" from a partly-manual process (OPNsense config still built by hand in Phase 1) into a fully automated one:
 
-```
+```text
 Create PPSK (via panel)
    v
 Generate password (Section 14)
@@ -473,6 +492,7 @@ This is only feasible cleanly because of the service-layer separation in Section
 ## 20. Open Items - Need Decisions Before Build Starts
 
 **Resolved (closed):**
+
 - [x] VLAN ID range: **300 onward**, subnet 10.30.X.0/24 (VLAN minus 300 = X). Confirmed 2026-07-13 after reviewing existing VLAN table at Office SancoMedia Kelder.
 - [x] Panel stack: **Laravel + Filament**
 - [x] Database: **PostgreSQL**
@@ -491,6 +511,7 @@ This is only feasible cleanly because of the service-layer separation in Section
 - [x] Panel access: **local network only**, via VLAN 205 / WireGuard admin tunnel (Section 16). Decided 2026-07-13.
 
 **Still open (resolve before or during first session):**
+
 - [ ] Confirm UniFi Network application version supports RADIUS-based Private PSK (ZILL verifies over RustDesk during first access session)
 - [ ] Confirm the 5 WireGuard peer configs per router are ready for all 3 locations (15 total) before OPNsense config begins
 
@@ -541,6 +562,7 @@ This is the single most sensitive boundary in the codebase. The mapping between 
 - The VLAN handed to the AP is derived only from the stored `ppsk_groups.vlan_id`. Never compute or accept a VLAN from client input at authentication time.
 
 ### 23.2 Always do
+
 - Validate all external input at the boundary (controllers / form requests). Never trust input past the first layer.
 - Route every PSK through the value type in Section 14 before persistence.
 - Wrap any operation that touches both `ppsk_groups` and RADIUS tables in a single transaction opened at the service layer.
@@ -550,6 +572,7 @@ This is the single most sensitive boundary in the codebase. The mapping between 
 - Keep a short ADR note in `docs/` for any decision that changes the data model, the RADIUS boundary, or the installer contract.
 
 ### 23.3 Never do
+
 - Never write to a RADIUS table outside the single Section 23.1 path.
 - Never derive a VLAN or tunnel from client-supplied data at auth time.
 - Never add polling or timed auto-refresh to the panel. On-demand loads only.
@@ -559,6 +582,7 @@ This is the single most sensitive boundary in the codebase. The mapping between 
 - Never use em dashes or en dashes anywhere in code, comments, docs, or output. Hyphens only.
 
 ### 23.4 Git workflow
+
 - `develop` is the integration branch; feature branches merge into it. `main` receives release merges only, with `--no-ff`.
 - Conventional Commits, tied to section numbers where useful (e.g. `feat: Section 8 rlm_sql schema + seed`).
 - One logical change per commit; keep RADIUS-boundary changes in their own reviewable commit.
@@ -566,12 +590,15 @@ This is the single most sensitive boundary in the codebase. The mapping between 
 ## 24. One-Click Installer Script (Phase 1 scope)
 
 ### 24.1 What it is
+
 An encrypted, single-command installer that provisions the **auth and panel node**: the database, FreeRADIUS with `rlm_sql`, and the web panel, on one Linux host. The goal is that the client runs one command and the node comes up configured, seeded, and ready, with the panel URL, admin login, and RADIUS shared secret printed at the end for pasting into UniFi.
 
 ### 24.2 Honest boundary (read before promising this to the client)
+
 The installer configures one host. It does **not** configure OPNsense (VLAN interfaces, WireGuard, gateways, firewall rules) or UniFi (SSID, RADIUS profile), because those are separate appliances. OPNsense automation depends on its API and is Phase 2 (Section 19). So in Phase 1, "one click" means the FreeRADIUS + database + panel node is fully automated, and the OPNsense and UniFi steps remain a documented manual runbook. Do not describe the Phase 1 installer as setting up the entire end-to-end chain.
 
 ### 24.3 What the installer does (auth + panel node)
+
 1. Preflight: require root, detect and enforce the supported OS, check for an existing install and offer safe re-run (idempotent).
 2. Install dependencies: database engine (PostgreSQL or MariaDB per Section 3 choice), FreeRADIUS, web server, PHP-FPM or Python runtime per the Section 16 stack, plus openssl and git.
 3. Database: create the database and a least-privilege user, load the FreeRADIUS `rlm_sql` schema, `ppsk_groups`, and `admin_log`, and seed 2 test PPSK groups.
@@ -581,6 +608,7 @@ The installer configures one host. It does **not** configure OPNsense (VLAN inte
 7. Post-install: print the panel URL, admin login, shared secret, and the exact next manual steps for OPNsense and UniFi. Write a full install log for support.
 
 ### 24.4 Design rules for the script
+
 - Target and pin one OS: **Ubuntu Server 24.04 LTS** (decision updated 2026-07-13; PHP 8.3 ships in the 24.04 base repos, so no third-party PPA is needed). State the requirement plainly; do not attempt to support every distro in Phase 1, or one-click reliability breaks.
 - `set -euo pipefail`, root and OS checks up front, idempotent functions, clear stage logging.
 - Modular internal structure even though it ships as one blob: `preflight`, `install_db`, `install_freeradius`, `deploy_panel`, `configure_services`, `self_check`, `summary`.
@@ -588,6 +616,7 @@ The installer configures one host. It does **not** configure OPNsense (VLAN inte
 - A `self_check` stage at the end verifies the FreeRADIUS config test passes, services are active, and the panel responds, before printing success.
 
 ### 24.5 Encryption and delivery (with the honest limitation)
+
 The intent is to hand the client one opaque command and to protect the method as a deliverable. Two workable approaches:
 
 - **openssl wrapper (portable):** AES-256 encrypt the real script into a payload, ship a tiny decryptor stub that takes a passphrase (which you provide), decrypts in memory, and pipes to bash. Portable, no per-architecture build.
@@ -596,6 +625,7 @@ The intent is to hand the client one opaque command and to protect the method as
 Honest limitation to keep in mind: any script the client executes must decrypt to run, so this is tamper-friction and IP-obfuscation, not true secrecy. A determined user with root can still recover the decrypted contents at runtime. That is acceptable if the goal is a clean, product-like deliverable and casual protection of the method. It is not a guarantee of confidentiality. Also note that asking a client to run an opaque encrypted blob as root is a trust ask; a technical client may prefer a checksum, a walk-through, or that you run it yourself over the access already discussed. Decide the delivery model (client-run vs you-run) and record it in Section 20.
 
 ### 24.6 Phasing of the installer
+
 - **Installer Phase A (now):** the auth + panel node, fully one-click, as above.
 - **Installer Phase B (with Section 19):** once OPNsense API automation exists, the same script (or a companion) drives VLAN, WireGuard, gateway, and firewall provisioning from `ppsk_groups`, moving the system toward genuine end-to-end one-click. This is a Phase 2 extension, not a Phase 1 promise.
 
@@ -604,6 +634,7 @@ Honest limitation to keep in mind: any script the client executes must decrypt t
 For any AI assistant (Claude Code or otherwise) working in this repo.
 
 ### 25.1 Before writing code
+
 - Read this file in full. Confirm the current phase and what is decided vs open (Section 20) before proposing anything.
 - Do not assume answers to Section 20 open items. Ask directly.
 - `ppsk_groups` (Section 7) is authoritative. Everything else is derived from it, never maintained independently.
@@ -611,6 +642,7 @@ For any AI assistant (Claude Code or otherwise) working in this repo.
 - If a task would write to a RADIUS table outside the Section 23.1 path, stop and flag it.
 
 ### 25.2 While writing code
+
 - Build the Section 18 layered structure from the first line of panel code, even though Phase 1 does not need the OPNsense API yet. This is what makes Phase 2 an addition, not a rewrite.
 - Produce production-ready output that passes the Section 23 standards. Lead with the change and exact file paths; keep explanations minimal and technical.
 - Match existing patterns. Do not introduce a new pattern for a problem an existing one already solves.
@@ -618,6 +650,7 @@ For any AI assistant (Claude Code or otherwise) working in this repo.
 - If a file is corrupted or a partial patch would be fragile, rewrite the whole file cleanly.
 
 ### 25.3 Do not, without explicit permission
+
 - Do not refactor working, tested architecture as a side effect of an unrelated task.
 - Do not add dependencies, change the folder structure, or alter the RADIUS boundary or installer contract.
 - Do not describe the Phase 1 installer as setting up the full end-to-end chain (Section 24.2).
@@ -625,6 +658,7 @@ For any AI assistant (Claude Code or otherwise) working in this repo.
 - Do not use em dashes or en dashes in any output.
 
 ### 25.4 When finishing
+
 - State which files changed and why, one line each.
 - List any command to run (migrations, config test, service restart, tests).
 - If a change has a network-side implication (new VLAN, tunnel, or rule), note the matching OPNsense, FreeRADIUS, or UniFi step. Do not assume the infrastructure side is done because the code compiles.

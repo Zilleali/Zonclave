@@ -1,0 +1,4 @@
+# Shell and SQL run on the Ubuntu node; CRLF breaks bash and psql heredocs.
+*.sh   text eol=lf
+*.sql  text eol=lf
+*.conf text eol=lf

@@ -32,11 +32,18 @@ readonly STATE_DIR="/etc/ppsk-installer"
 readonly SUMMARY_FILE="${STATE_DIR}/install-summary.txt"
 readonly LOG_FILE="/var/log/ppsk-install.log"
 
-# Panel source: local ./panel dir bundled with the installer, or a git URL.
-# If the panel source is not present yet, the installer still provisions the
-# database and FreeRADIUS, and skips the panel deploy with a clear warning,
-# so the infrastructure can be validated before the app is built.
-PANEL_SOURCE="${PANEL_SOURCE:-${SCRIPT_DIR}/panel}"
+# Panel source: local ./panel dir bundled with the installer, the repo's
+# panel/ dir when running from a checkout, or a git URL. If the panel source
+# is not present, the installer still provisions the database and FreeRADIUS,
+# and skips the panel deploy with a clear warning, so the infrastructure can
+# be validated before the app is built.
+if [ -z "${PANEL_SOURCE:-}" ]; then
+  if [ -d "${SCRIPT_DIR}/panel" ]; then
+    PANEL_SOURCE="${SCRIPT_DIR}/panel"
+  else
+    PANEL_SOURCE="${SCRIPT_DIR}/../panel"
+  fi
+fi
 PANEL_GIT_URL="${PANEL_GIT_URL:-}"          # optional: overrides local dir if set
 PANEL_DIR="/opt/zonclave"
 

@@ -134,7 +134,7 @@ UniFi USW-16-PoE
 | Item | Reserved range | Notes |
 |---|---|---|
 | Management VLAN | **205** | Zonclave server and admin access. Subnet 172.16.74.0/24 |
-| PPSK VLAN ID block | **300 onward** | Phase 1 uses 300 to 314 (5 tunnels x 3 routers). Block is open-ended; Phase 2 simply continues from 315 onward |
+| PPSK VLAN ID block | **300 onward** | Phase 1 uses 300 to 304 (5 VLANs, replicated identically on all three routers). Block is open-ended; Phase 2 simply continues from 305 onward |
 | PPSK subnet scheme | **10.30.X.0/24** where X = VLAN minus 300 | VLAN 300 = 10.30.0.0/24, VLAN 301 = 10.30.1.0/24, VLAN 314 = 10.30.14.0/24, and so on |
 
 Subnet formula is intentional: VLAN 300 - 300 = 0, so 10.30.**0**.0/24. This means a VLAN ID alone tells you the subnet with no lookup needed. Simple, self-documenting, and scales cleanly past 100 groups.
@@ -155,7 +155,7 @@ Subnet formula is intentional: VLAN 300 - 300 = 0, so 10.30.**0**.0/24. This mea
 | 303 | 10.30.3.0/24 | WG_VLAN303 | GW_WG_VLAN303 |
 | 304 | 10.30.4.0/24 | WG_VLAN304 | GW_WG_VLAN304 |
 
-The same VLAN IDs and subnet scheme are replicated identically on all three OPNsense routers. Each router has its own 5 WireGuard tunnel interfaces with the same VLAN numbers pointing to different residential peer configs.
+The same VLAN IDs and subnet scheme are replicated identically on all three OPNsense routers. Each router has its own 5 WireGuard tunnel interfaces mapped to VLANs 300 to 304, pointing to different residential peer configs. That means 15 tunnel instances total across the 3 routers, but only 5 unique VLAN IDs in use per site. A PPSK therefore selects the same VLAN number at every location, and which residential IP it egresses from depends on which site's router the device is behind.
 
 **802.1Q ceiling note:** VLAN ID space runs 1 to 4094. Starting at 300 leaves 3,794 slots above the block, far more than this project will ever use.
 

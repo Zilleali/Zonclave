@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources\PpskGroups\Pages;
 
 use App\Filament\Resources\PpskGroups\PpskGroupResource;
+use App\Filament\Support\CopyToClipboardAction;
 use App\Models\PpskGroup;
 use App\Services\PpskService;
 use Filament\Actions\Action;
@@ -59,6 +60,7 @@ class EditPpskGroup extends EditRecord
                         ))
                         ->success()
                         ->persistent()
+                        ->actions([CopyToClipboardAction::make($result['psk'])])
                         ->send();
                 }),
 

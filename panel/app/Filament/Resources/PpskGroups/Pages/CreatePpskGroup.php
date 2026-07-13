@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources\PpskGroups\Pages;
 
 use App\Filament\Resources\PpskGroups\PpskGroupResource;
+use App\Filament\Support\CopyToClipboardAction;
 use App\Services\PpskService;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
@@ -36,6 +37,7 @@ class CreatePpskGroup extends CreateRecord
             ))
             ->success()
             ->persistent()
+            ->actions([CopyToClipboardAction::make($result['psk'])])
             ->send();
 
         return $result['group'];

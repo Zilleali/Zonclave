@@ -10,6 +10,7 @@ use App\Filament\Widgets\PpskStatsOverview;
 use App\Models\PpskGroup;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -95,6 +96,25 @@ class PpskStatsOverviewTest extends TestCase
         $this->assertSame(3, $total->getValue());
         $this->assertSame('50% of Active + Disabled', $active->getDescription());
         $this->assertSame('50% of Active + Disabled', $disabled->getDescription());
+    }
+
+    public function test_getstats_runs_at_most_two_queries(): void
+    {
+        PpskGroup::factory()->count(2)->create(['status' => PpskStatus::Active]);
+        PpskGroup::factory()->create(['status' => PpskStatus::Disabled]);
+
+        $widget = new PpskStatsOverview;
+        $ref = new \ReflectionMethod($widget, 'getStats');
+        $ref->setAccessible(true);
+
+        $queryCount = 0;
+        DB::listen(function () use (&$queryCount): void {
+            $queryCount++;
+        });
+
+        $ref->invoke($widget);
+
+        $this->assertLessThanOrEqual(2, $queryCount);
     }
 
     public function test_filtering_by_the_active_card_url_shows_only_active_groups(): void

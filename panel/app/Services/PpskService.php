@@ -8,6 +8,7 @@ use App\Domain\Psk;
 use App\Domain\PskGenerator;
 use App\Domain\RadiusDerivation;
 use App\Domain\VlanPlan;
+use App\Enums\AdminLogAction;
 use App\Enums\PpskStatus;
 use App\Models\PpskGroup;
 use App\Repositories\AdminLogRepository;
@@ -60,7 +61,7 @@ class PpskService
             ]);
 
             $this->projectToRadius($group);
-            $this->auditLog->log('ppsk_created', $adminUser, $group->id, $group->label);
+            $this->auditLog->log(AdminLogAction::PpskCreated, $adminUser, $group->id, $group->label);
 
             return $group;
         });
@@ -86,7 +87,7 @@ class PpskService
             ]);
 
             $this->projectToRadius($group);
-            $this->auditLog->log('ppsk_updated', $adminUser, $group->id, $group->label);
+            $this->auditLog->log(AdminLogAction::PpskUpdated, $adminUser, $group->id, $group->label);
 
             return $group;
         });
@@ -94,21 +95,21 @@ class PpskService
 
     public function enable(PpskGroup $group, ?string $adminUser): PpskGroup
     {
-        return $this->setStatus($group, PpskStatus::Active, 'ppsk_enabled', $adminUser);
+        return $this->setStatus($group, PpskStatus::Active, AdminLogAction::PpskEnabled, $adminUser);
     }
 
     // Disabling revokes authentication via the projection, not just a UI
     // flag (Section 23.1).
     public function disable(PpskGroup $group, ?string $adminUser): PpskGroup
     {
-        return $this->setStatus($group, PpskStatus::Disabled, 'ppsk_disabled', $adminUser);
+        return $this->setStatus($group, PpskStatus::Disabled, AdminLogAction::PpskDisabled, $adminUser);
     }
 
     public function delete(PpskGroup $group, ?string $adminUser): void
     {
         DB::transaction(function () use ($group, $adminUser): void {
             $this->radius->purgeFor($group->radius_username);
-            $this->auditLog->log('ppsk_deleted', $adminUser, $group->id, $group->label);
+            $this->auditLog->log(AdminLogAction::PpskDeleted, $adminUser, $group->id, $group->label);
             $this->groups->delete($group);
         });
     }
@@ -124,7 +125,7 @@ class PpskService
             ]);
 
             $this->projectToRadius($group);
-            $this->auditLog->log('ppsk_password_regenerated', $adminUser, $group->id, $group->label);
+            $this->auditLog->log(AdminLogAction::PpskPasswordRegenerated, $adminUser, $group->id, $group->label);
 
             return $group;
         });
@@ -150,7 +151,7 @@ class PpskService
         );
     }
 
-    private function setStatus(PpskGroup $group, PpskStatus $status, string $action, ?string $adminUser): PpskGroup
+    private function setStatus(PpskGroup $group, PpskStatus $status, AdminLogAction $action, ?string $adminUser): PpskGroup
     {
         return DB::transaction(function () use ($group, $status, $action, $adminUser): PpskGroup {
             $group = $this->groups->update($group, ['status' => $status]);

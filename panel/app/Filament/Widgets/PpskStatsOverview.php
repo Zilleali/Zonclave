@@ -6,10 +6,10 @@ namespace App\Filament\Widgets;
 
 use App\Enums\PpskStatus;
 use App\Filament\Resources\PpskGroups\PpskGroupResource;
-use App\Models\PpskGroup;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 // Dashboard inventory counts, per CLAUDE.md Section 16.2 ("Phase 1
 // dashboard is inventory only") and Section 23.3 ("no polling, on-demand
@@ -22,9 +22,17 @@ class PpskStatsOverview extends StatsOverviewWidget
 
     protected function getStats(): array
     {
-        $total = PpskGroup::query()->count();
-        $active = PpskGroup::query()->where('status', PpskStatus::Active)->count();
-        $disabled = PpskGroup::query()->where('status', PpskStatus::Disabled)->count();
+        // One query for all three counts (was three separate COUNT(*)
+        // calls). DB::table() bypasses the model's enum cast so the keys
+        // here are the plain status strings, matching PpskStatus::value.
+        $countsByStatus = DB::table('ppsk_groups')
+            ->selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status');
+
+        $total = (int) $countsByStatus->sum();
+        $active = (int) ($countsByStatus[PpskStatus::Active->value] ?? 0);
+        $disabled = (int) ($countsByStatus[PpskStatus::Disabled->value] ?? 0);
 
         // Percentages are of each other (Active + Disabled), not of $total.
         // PpskStatus also defines Provisioning and Error (Section 7, for
@@ -55,18 +63,22 @@ class PpskStatsOverview extends StatsOverviewWidget
     // Registry growth over the last 7 days. Status counts have no
     // historical trend to show honestly in Phase 1 (no status-change
     // history is kept, see Section 13), so only the total gets a chart.
+    // One query for both the window's daily counts and the pre-window
+    // baseline (was two queries: a filtered day-group plus a separate
+    // count() for everything before it).
     /** @return list<float> */
     private function cumulativeTotalByDay(): array
     {
         $since = Carbon::today()->subDays(6);
 
-        $countsByDay = PpskGroup::query()
-            ->where('created_at', '>=', $since)
+        $countsByDay = DB::table('ppsk_groups')
             ->selectRaw('DATE(created_at) as day, COUNT(*) as count')
             ->groupBy('day')
             ->pluck('count', 'day');
 
-        $runningTotal = PpskGroup::query()->where('created_at', '<', $since)->count();
+        $runningTotal = $countsByDay
+            ->filter(fn (int $count, string $day): bool => $day < $since->toDateString())
+            ->sum();
 
         return collect(range(0, 6))
             ->map(function (int $daysAgo) use ($since, $countsByDay, &$runningTotal): float {

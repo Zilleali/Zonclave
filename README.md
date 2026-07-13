@@ -59,6 +59,69 @@ vendor/bin/pint --test
 vendor/bin/phpstan analyse
 ```
 
+## Serving the panel with nginx (Linux)
+
+`php artisan serve` is fine for quick iteration, but to validate the panel the way it will actually run in production, serve it through nginx + PHP-FPM on a Linux box. This is exactly what `installer/install.sh`'s `configure_services()` stage automates; doing it by hand once on a test node is a good way to confirm `APP_URL` and the vhost are correct before trusting the full installer.
+
+Install nginx and PHP-FPM (Ubuntu/Debian):
+
+```sh
+sudo apt update
+sudo apt install -y nginx php8.3-fpm
+```
+
+Point the app at the host you'll browse to. Replace `192.168.0.102` with your test node's own LAN IP (find it with `hostname -I`):
+
+```sh
+cd panel
+sed -i "s|^APP_URL=.*|APP_URL=http://192.168.0.102|" .env
+php artisan config:cache
+```
+
+Create the nginx site (same shape as the installer's generated vhost):
+
+```sh
+sudo tee /etc/nginx/sites-available/zonclave >/dev/null <<'EOF'
+server {
+    listen 80;
+    server_name 192.168.0.102 _;
+    root /full/path/to/panel/public;
+
+    index index.php;
+    charset utf-8;
+
+    location / { try_files $uri $uri/ /index.php?$query_string; }
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    error_page 404 /index.php;
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\.(?!well-known).* { deny all; }
+}
+EOF
+```
+
+Replace `/full/path/to/panel/public` with the absolute path to your `panel/public` directory, then enable the site and restart services:
+
+```sh
+sudo ln -sf /etc/nginx/sites-available/zonclave /etc/nginx/sites-enabled/zonclave
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl restart php8.3-fpm nginx
+```
+
+If `ufw` is enabled, allow HTTP: `sudo ufw allow 80/tcp`.
+
+Verify: `curl -I http://192.168.0.102/admin/login` should return `200`, and the rendered page's links should reference `192.168.0.102`, not `localhost`.
+
+On the real installer, `APP_URL` is resolved the same way (auto-detected LAN IP, or a fixed value if you set `APP_URL` in `installer.conf`, e.g. `http://172.16.74.10` per CLAUDE.md Section 3.4) and kept in sync with the generated nginx vhost automatically, so nothing above needs to be repeated once the full installer runs.
+
 ## Installer
 
 The installer provisions the auth + panel node on one Ubuntu Server 24.04 LTS host: PostgreSQL, FreeRADIUS with `rlm_sql`, and the Zonclave panel, with all secrets generated at runtime and printed once.

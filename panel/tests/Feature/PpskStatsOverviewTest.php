@@ -1,0 +1,157 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature;
+
+use App\Enums\PpskStatus;
+use App\Filament\Resources\PpskGroups\Pages\ListPpskGroups;
+use App\Filament\Widgets\PpskStatsOverview;
+use App\Models\PpskGroup;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Livewire\Livewire;
+use Tests\TestCase;
+
+// Dashboard inventory counts, per CLAUDE.md Section 16.2.
+class PpskStatsOverviewTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_polling_is_disabled(): void
+    {
+        // Section 23.3: never add polling or timed auto-refresh.
+        $widget = new PpskStatsOverview;
+        $ref = new \ReflectionMethod($widget, 'getPollingInterval');
+        $ref->setAccessible(true);
+
+        $this->assertNull($ref->invoke($widget));
+    }
+
+    public function test_stats_reflect_group_counts_by_status(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        PpskGroup::factory()->count(2)->create(['status' => PpskStatus::Active]);
+        PpskGroup::factory()->create(['status' => PpskStatus::Disabled]);
+
+        Livewire::test(PpskStatsOverview::class)
+            ->assertSee('Total PPSK groups')
+            ->assertSee('3')
+            ->assertSee('Active')
+            ->assertSee('2')
+            ->assertSee('Disabled')
+            ->assertSee('1');
+    }
+
+    public function test_cards_link_to_the_ppsk_list_pre_filtered_by_status(): void
+    {
+        $widget = new PpskStatsOverview;
+        $ref = new \ReflectionMethod($widget, 'getStats');
+        $ref->setAccessible(true);
+
+        [$total, $active, $disabled] = $ref->invoke($widget);
+
+        $this->assertSame(url('/admin/ppsk-groups'), $total->getUrl());
+        $this->assertSame(
+            url('/admin/ppsk-groups').'?filters%5Bstatus%5D%5Bvalue%5D=active',
+            $active->getUrl(),
+        );
+        $this->assertSame(
+            url('/admin/ppsk-groups').'?filters%5Bstatus%5D%5Bvalue%5D=disabled',
+            $disabled->getUrl(),
+        );
+    }
+
+    public function test_total_card_has_a_growth_chart_and_status_cards_do_not(): void
+    {
+        $widget = new PpskStatsOverview;
+        $ref = new \ReflectionMethod($widget, 'getStats');
+        $ref->setAccessible(true);
+
+        [$total, $active, $disabled] = $ref->invoke($widget);
+
+        $this->assertCount(7, $total->getChart());
+        $this->assertNull($active->getChart());
+        $this->assertNull($disabled->getChart());
+    }
+
+    public function test_active_and_disabled_percentages_sum_to_100_even_with_other_statuses(): void
+    {
+        // PpskStatus also defines Provisioning and Error (Phase 2), which
+        // have no card of their own here. Percentages must stay anchored
+        // to Active + Disabled, not the grand total, or they would
+        // silently stop summing to 100% the moment such a row exists.
+        PpskGroup::factory()->create(['status' => PpskStatus::Active]);
+        PpskGroup::factory()->create(['status' => PpskStatus::Disabled]);
+        PpskGroup::factory()->create(['status' => PpskStatus::Provisioning]);
+
+        $widget = new PpskStatsOverview;
+        $ref = new \ReflectionMethod($widget, 'getStats');
+        $ref->setAccessible(true);
+
+        [$total, $active, $disabled] = $ref->invoke($widget);
+
+        $this->assertSame(3, $total->getValue());
+        $this->assertSame('50% of Active + Disabled', $active->getDescription());
+        $this->assertSame('50% of Active + Disabled', $disabled->getDescription());
+    }
+
+    public function test_getstats_runs_at_most_two_queries(): void
+    {
+        PpskGroup::factory()->count(2)->create(['status' => PpskStatus::Active]);
+        PpskGroup::factory()->create(['status' => PpskStatus::Disabled]);
+
+        $widget = new PpskStatsOverview;
+        $ref = new \ReflectionMethod($widget, 'getStats');
+        $ref->setAccessible(true);
+
+        $queryCount = 0;
+        DB::listen(function () use (&$queryCount): void {
+            $queryCount++;
+        });
+
+        $ref->invoke($widget);
+
+        $this->assertLessThanOrEqual(2, $queryCount);
+    }
+
+    public function test_filtering_by_the_active_card_url_shows_only_active_groups(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $activeGroup = PpskGroup::factory()->create(['status' => PpskStatus::Active]);
+        $disabledGroup = PpskGroup::factory()->create(['status' => PpskStatus::Disabled]);
+
+        Livewire::test(ListPpskGroups::class)
+            ->set('tableFilters', ['status' => ['value' => PpskStatus::Active->value]])
+            ->assertCanSeeTableRecords([$activeGroup])
+            ->assertCanNotSeeTableRecords([$disabledGroup]);
+    }
+
+    public function test_visiting_the_active_cards_url_directly_actually_filters(): void
+    {
+        // Unlike the tests above (which set the Livewire tableFilters
+        // property directly, or only compare the generated URL string),
+        // this hits the exact URL an admin's browser hits when they click
+        // the "Active" card, and confirms Filament's #[Url(as: 'filters')]
+        // binding on ListRecords genuinely hydrates tableFilters from it on
+        // a real initial page load.
+        $this->actingAs(User::factory()->create());
+
+        $activeGroup = PpskGroup::factory()->create(['status' => PpskStatus::Active]);
+        $disabledGroup = PpskGroup::factory()->create(['status' => PpskStatus::Disabled]);
+
+        $widget = new PpskStatsOverview;
+        $ref = new \ReflectionMethod($widget, 'getStats');
+        $ref->setAccessible(true);
+        [, $active] = $ref->invoke($widget);
+
+        $response = $this->get($active->getUrl());
+
+        $response->assertOk();
+        $response->assertSee($activeGroup->label);
+        $response->assertDontSee($disabledGroup->label);
+    }
+}

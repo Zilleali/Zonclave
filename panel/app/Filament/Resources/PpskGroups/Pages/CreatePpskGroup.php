@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources\PpskGroups\Pages;
 
 use App\Filament\Resources\PpskGroups\PpskGroupResource;
+use App\Filament\Support\PskRevealNotification;
 use App\Services\PpskService;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
@@ -27,16 +28,12 @@ class CreatePpskGroup extends CreateRecord
             Filament::auth()->user()?->getAttribute('email'),
         );
 
-        Notification::make()
-            ->title('PPSK created - password shown once')
-            ->body(sprintf(
-                "Wi-Fi password for %s:\n\n%s\n\nCopy it now. It cannot be displayed again.",
-                $result['group']->label,
-                $result['psk'],
-            ))
-            ->success()
-            ->persistent()
-            ->send();
+        PskRevealNotification::make(
+            'PPSK created - password shown once',
+            'Wi-Fi password',
+            $result['group'],
+            $result['psk'],
+        )->send();
 
         return $result['group'];
     }

@@ -417,6 +417,8 @@ On submit: writes/updates `ppsk_groups` (Section 7) first, which in turn generat
 - Change admin password.
 - (Phase 2 candidate, not required Phase 1: manage the list of available VLAN/tunnel pairs from the UI instead of a fixed pre-provisioned list.)
 
+**Decision recorded 2026-07-13:** no separate Settings page. Filament's built-in Profile page (`/admin/profile`) already covers "change admin password" (Section 16.1's single admin, no self-registration), so a second page with the same one field would be pure duplication. The email field on that page is locked read-only (see the `App\Filament\Pages\EditProfile` override), since there is no second admin account to reconcile it against. Revisit only if Phase 2 needs settings beyond password (e.g. managing the VLAN/tunnel list from the UI).
+
 ### Phase 2 additions to the panel (not built in Phase 1, listed for planning only)
 
 - Device activity log page: which device/MAC authenticated with which PPSK, timestamp, session duration, data used (requires RADIUS accounting, `radacct` table).

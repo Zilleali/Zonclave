@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace App\Filament\Resources\PpskGroups\Pages;
 
 use App\Filament\Resources\PpskGroups\PpskGroupResource;
+use App\Filament\Support\PskRevealNotification;
 use App\Models\PpskGroup;
 use App\Services\PpskService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Facades\Filament;
-use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
 
@@ -50,16 +50,12 @@ class EditPpskGroup extends EditRecord
                         Filament::auth()->user()?->getAttribute('email'),
                     );
 
-                    Notification::make()
-                        ->title('Password regenerated - shown once')
-                        ->body(sprintf(
-                            "New Wi-Fi password for %s:\n\n%s\n\nCopy it now. It cannot be displayed again.",
-                            $result['group']->label,
-                            $result['psk'],
-                        ))
-                        ->success()
-                        ->persistent()
-                        ->send();
+                    PskRevealNotification::make(
+                        'Password regenerated - shown once',
+                        'New Wi-Fi password',
+                        $result['group'],
+                        $result['psk'],
+                    )->send();
                 }),
 
             DeleteAction::make()

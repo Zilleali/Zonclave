@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\PpskStatus;
+use Database\Factories\PpskGroupFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
@@ -27,6 +29,9 @@ use Illuminate\Support\Carbon;
  */
 class PpskGroup extends Model
 {
+    /** @use HasFactory<PpskGroupFactory> */
+    use HasFactory;
+
     protected $table = 'ppsk_groups';
 
     protected $fillable = [

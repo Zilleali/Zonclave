@@ -30,15 +30,43 @@ to configure, not assumed:
 
 ### A note on interface names
 
-Section 6's naming table uses `igb0_vlan300` as the illustrative parent
-interface. **Confirm the real driver name before you copy that literally.**
-The Protectli Vault FW6E ships Intel I225-V 2.5GbE controllers, which
-FreeBSD/OPNsense commonly enumerate as `igc0`-`igc5`, not `igb0`-`igb5`
-(`igb` is the driver for the older I210/I350/82576 chips). Check
-**Interfaces > Assignments** (or `ifconfig` over SSH) on the actual box and
-substitute whatever you find throughout this doc and in `ppsk_groups`. The
-VLAN ID, subnet, and `WG_VLAN<id>`/`GW_WG_VLAN<id>` names are fixed by
-Section 5/6 regardless of which physical NIC they ride on.
+**Confirmed 2026-07-13 from the Office SancoMedia Kelder box's Interfaces >
+Assignments page:** the driver is `igb`, not `igc` as originally guessed
+here from the Intel I225-V datasheet. Current assignment on that box:
+
+| Assignment | Port |
+| --- | --- |
+| WAN | `igb0` |
+| LAN | `igb1` |
+| LAN235 | `igb2` |
+| LAN236 | `igb3` |
+| LAN237 | `igb4` |
+| LAN238 | `igb5` |
+
+Re-confirm this per box (per Section 0's own advice) rather than assuming
+it's identical at every site - Protectli units can ship with different NIC
+revisions even across the same model line.
+
+**Open question, blocking Section 3.1 at this site:** all 6 physical ports
+are already assigned (WAN, LAN, and LAN235-238, one dedicated NIC each -
+not stacked as tagged sub-interfaces of a shared trunk). There is currently
+no free physical port for a new trunk cable carrying VLANs 300-304. Confirm
+with Sancover before starting Section 3.1 whether `igb1` (LAN)'s
+switch-side port is already configured as an 802.1Q trunk (in which case
+VLANs 300-304 are added as tagged sub-interfaces of `igb1`, no new cable
+needed) or carries only untagged traffic today (in which case the UniFi
+switch port feeding `igb1` needs to be converted to a trunk first, or a
+different physical path found). Do not guess this - get it in writing from
+whoever manages the switch config, since guessing wrong here risks the
+exact leak Section 12 exists to prevent.
+
+**Also confirm:** the box already has an OpenVPN client tunnel
+(`ovpnc1`, "PIA UK Londen"). This is a commercial VPN (Private Internet
+Access), not a residential-IP provider - its exit IPs are datacenter IPs,
+not real ISP-assigned residential addresses. Confirm this tunnel is
+pre-existing/unrelated to this project, not what's meant by "residential
+VPN provider" in Section 3.3, before treating any of the 5 new tunnels per
+router as already provisioned.
 
 ## 1. Quick reference: the fixed Phase 1 block
 

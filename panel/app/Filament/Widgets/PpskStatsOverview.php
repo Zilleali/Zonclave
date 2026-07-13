@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace App\Filament\Widgets;
 
 use App\Enums\PpskStatus;
+use App\Filament\Resources\PpskGroups\PpskGroupResource;
 use App\Models\PpskGroup;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use Illuminate\Support\Carbon;
 
 // Dashboard inventory counts, per CLAUDE.md Section 16.2 ("Phase 1
 // dashboard is inventory only") and Section 23.3 ("no polling, on-demand
 // loads only"). Polling is explicitly disabled below; this only reflects
-// state as of the page load.
+// state as of the page load. Cards link through to the PPSK list,
+// pre-filtered by status where relevant, rather than duplicating it.
 class PpskStatsOverview extends StatsOverviewWidget
 {
     protected ?string $pollingInterval = null;
@@ -24,9 +27,57 @@ class PpskStatsOverview extends StatsOverviewWidget
         $disabled = PpskGroup::query()->where('status', PpskStatus::Disabled)->count();
 
         return [
-            Stat::make('Total PPSK groups', $total),
-            Stat::make('Active', $active)->color('success'),
-            Stat::make('Disabled', $disabled)->color('gray'),
+            Stat::make('Total PPSK groups', $total)
+                ->chart($this->cumulativeTotalByDay())
+                ->url(PpskGroupResource::getUrl()),
+
+            Stat::make('Active', $active)
+                ->color('success')
+                ->description($this->percentOf($active, $total).' of total')
+                ->url($this->filteredByStatus(PpskStatus::Active)),
+
+            Stat::make('Disabled', $disabled)
+                ->color('gray')
+                ->description($this->percentOf($disabled, $total).' of total')
+                ->url($this->filteredByStatus(PpskStatus::Disabled)),
         ];
+    }
+
+    // Registry growth over the last 7 days. Status counts have no
+    // historical trend to show honestly in Phase 1 (no status-change
+    // history is kept, see Section 13), so only the total gets a chart.
+    /** @return list<float> */
+    private function cumulativeTotalByDay(): array
+    {
+        $since = Carbon::today()->subDays(6);
+
+        $countsByDay = PpskGroup::query()
+            ->where('created_at', '>=', $since)
+            ->selectRaw('DATE(created_at) as day, COUNT(*) as count')
+            ->groupBy('day')
+            ->pluck('count', 'day');
+
+        $runningTotal = PpskGroup::query()->where('created_at', '<', $since)->count();
+
+        return collect(range(0, 6))
+            ->map(function (int $daysAgo) use ($since, $countsByDay, &$runningTotal): float {
+                $day = $since->copy()->addDays($daysAgo)->toDateString();
+                $runningTotal += (int) ($countsByDay[$day] ?? 0);
+
+                return (float) $runningTotal;
+            })
+            ->all();
+    }
+
+    private function percentOf(int $part, int $total): string
+    {
+        return $total > 0 ? round(($part / $total) * 100).'%' : '0%';
+    }
+
+    private function filteredByStatus(PpskStatus $status): string
+    {
+        return PpskGroupResource::getUrl().'?'.http_build_query([
+            'filters' => ['status' => ['value' => $status->value]],
+        ]);
     }
 }

@@ -129,4 +129,29 @@ class PpskStatsOverviewTest extends TestCase
             ->assertCanSeeTableRecords([$activeGroup])
             ->assertCanNotSeeTableRecords([$disabledGroup]);
     }
+
+    public function test_visiting_the_active_cards_url_directly_actually_filters(): void
+    {
+        // Unlike the tests above (which set the Livewire tableFilters
+        // property directly, or only compare the generated URL string),
+        // this hits the exact URL an admin's browser hits when they click
+        // the "Active" card, and confirms Filament's #[Url(as: 'filters')]
+        // binding on ListRecords genuinely hydrates tableFilters from it on
+        // a real initial page load.
+        $this->actingAs(User::factory()->create());
+
+        $activeGroup = PpskGroup::factory()->create(['status' => PpskStatus::Active]);
+        $disabledGroup = PpskGroup::factory()->create(['status' => PpskStatus::Disabled]);
+
+        $widget = new PpskStatsOverview;
+        $ref = new \ReflectionMethod($widget, 'getStats');
+        $ref->setAccessible(true);
+        [, $active] = $ref->invoke($widget);
+
+        $response = $this->get($active->getUrl());
+
+        $response->assertOk();
+        $response->assertSee($activeGroup->label);
+        $response->assertDontSee($disabledGroup->label);
+    }
 }

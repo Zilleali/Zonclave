@@ -18,8 +18,27 @@ class CopyToClipboardActionTest extends TestCase
         $action = CopyToClipboardAction::make('abcdefghjkmnpqrstuvwxyz2');
 
         $this->assertSame(
-            "window.zonclaveCopyToClipboard('abcdefghjkmnpqrstuvwxyz2')",
+            'window.'.CopyToClipboardAction::JS_HANDLER."('abcdefghjkmnpqrstuvwxyz2')",
             $action->getCustomAlpineClickHandler(),
+        );
+    }
+
+    public function test_the_action_and_the_global_script_agree_on_the_handler_name(): void
+    {
+        // Both sides read App\Filament\Support\CopyToClipboardAction::
+        // JS_HANDLER rather than hardcoding their own copy of the name
+        // (see clipboard-script.blade.php), so this can't drift the way
+        // two independently-maintained literals could.
+        $action = CopyToClipboardAction::make('x');
+        $this->assertStringStartsWith(
+            'window.'.CopyToClipboardAction::JS_HANDLER.'(',
+            $action->getCustomAlpineClickHandler(),
+        );
+
+        $rendered = view('filament.clipboard-script')->render();
+        $this->assertStringContainsString(
+            'window.'.CopyToClipboardAction::JS_HANDLER.' = function',
+            $rendered,
         );
     }
 

@@ -15,13 +15,19 @@ use Illuminate\Support\Js;
 //
 // Rendered as a solid button (not a plain link) so it reads clearly as
 // the primary action on the notification. The actual copy logic lives in
-// window.zonclaveCopyToClipboard (resources/views/filament/clipboard-
-// script.blade.php, registered as a panel render hook), which also
-// handles the insecure-HTTP fallback and fires the "Password copied" /
-// failure toast - keeping this class a thin, testable wrapper around one
-// JS call rather than duplicating that logic per call site.
+// window.{JS_HANDLER} (resources/views/filament/clipboard-script.blade.php,
+// registered as a panel render hook), which also handles the insecure-HTTP
+// fallback and fires the "Password copied" / failure toast - keeping this
+// class a thin, testable wrapper around one JS call rather than
+// duplicating that logic per call site.
 final class CopyToClipboardAction
 {
+    // The single source of truth for the global JS function name, so the
+    // Blade view and this class can't independently drift apart (one
+    // hardcoding the name without the other) - the view interpolates this
+    // same constant instead of hardcoding its own copy.
+    public const JS_HANDLER = 'zonclaveCopyToClipboard';
+
     public static function make(string $value, string $label = 'Copy password'): Action
     {
         return Action::make('copyToClipboard')
@@ -33,6 +39,6 @@ final class CopyToClipboardAction
             // Js::from() safely encodes $value for embedding in a JS string
             // literal; $value is server-generated (PskGenerator), never
             // raw user input, but this stays safe regardless.
-            ->alpineClickHandler('window.zonclaveCopyToClipboard('.Js::from($value).')');
+            ->alpineClickHandler('window.'.self::JS_HANDLER.'('.Js::from($value).')');
     }
 }

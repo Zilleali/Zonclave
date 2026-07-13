@@ -1,9 +1,13 @@
 {{-- Global click-to-copy helper for CopyToClipboardAction (CLAUDE.md
      Section 14). Falls back to document.execCommand when the Clipboard
      API is unavailable, which happens on any insecure (plain HTTP)
-     origin - the panel's default deployment per Section 16. --}}
+     origin - the panel's default deployment per Section 16.
+
+     The function name is pulled from CopyToClipboardAction::JS_HANDLER
+     rather than hardcoded here, so this view and that class can't
+     independently drift apart on the name they agree to call. --}}
 <script>
-    window.zonclaveCopyToClipboard = function (text) {
+    window.{{ \App\Filament\Support\CopyToClipboardAction::JS_HANDLER }} = function (text) {
         var notifySuccess = function () {
             new FilamentNotification().title('Password copied').success().seconds(3).send();
         };

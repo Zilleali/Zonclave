@@ -39,12 +39,45 @@ Each VLAN is fail-closed: if its WireGuard tunnel drops, traffic is dropped, nev
 
 ## Panel development
 
-Requires PHP 8.2+, Composer, and (for production parity) PostgreSQL. Local dev runs on sqlite out of the box.
+Requires PHP 8.2+ (with `mbstring`, `xml`, `curl`, `zip`, `intl`, `sqlite3`/`pdo_sqlite` extensions), Composer 2, and (for production parity) PostgreSQL. Local dev runs on sqlite out of the box.
+
+### Linux (Ubuntu 24.04 / Debian 12)
+
+Install prerequisites, then set up the app:
 
 ```sh
+sudo apt update
+sudo apt install -y php8.3-cli php8.3-mbstring php8.3-xml php8.3-curl \
+  php8.3-zip php8.3-intl php8.3-sqlite3 composer git
+
 cd panel
 composer install
 cp .env.example .env
+php artisan key:generate
+php artisan migrate
+php artisan panel:create-admin --email=you@example.com --password=<choose-one>
+php artisan serve   # panel at http://127.0.0.1:8000/admin
+```
+
+### Windows 10/11
+
+Install PHP 8.2+ and Composer first. Either download PHP from <https://windows.php.net/download/> and Composer from <https://getcomposer.org/download/>, or use a package manager:
+
+```powershell
+# with winget
+winget install PHP.PHP.8.3
+winget install Composer.Composer
+
+# or with Chocolatey
+choco install php composer -y
+```
+
+Enable the required extensions in `php.ini` (uncomment `extension=mbstring`, `curl`, `zip`, `intl`, `pdo_sqlite`, `sqlite3`, `fileinfo`, `openssl`), then from PowerShell or Git Bash:
+
+```powershell
+cd panel
+composer install
+copy .env.example .env    # use `cp` in Git Bash
 php artisan key:generate
 php artisan migrate
 php artisan panel:create-admin --email=you@example.com --password=<choose-one>
@@ -61,7 +94,7 @@ vendor/bin/phpstan analyse
 
 ## Installer
 
-The installer provisions the auth + panel node on one Ubuntu Server 24.04 LTS host: PostgreSQL, FreeRADIUS with `rlm_sql`, and the Zonclave panel, with all secrets generated at runtime and printed once.
+The installer provisions the auth + panel node on one Ubuntu Server 24.04 LTS host: PostgreSQL, FreeRADIUS with `rlm_sql`, and the Zonclave panel, with all secrets generated at runtime and printed once. It is Linux-only by design (the OS is pinned per CLAUDE.md Section 24.4); Windows is supported for panel development only, never as a deployment target.
 
 ```sh
 sudo bash installer/install.sh

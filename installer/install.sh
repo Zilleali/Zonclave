@@ -58,6 +58,12 @@ RADIUS_CLIENT_SUBNET="${RADIUS_CLIENT_SUBNET:-}"
 # Panel admin
 ADMIN_EMAIL="${ADMIN_EMAIL:-}"
 
+# Panel URL. Overridable in installer.conf (fixed management IP or a domain,
+# e.g. http://172.16.74.10 per CLAUDE.md Section 3.4). Left empty here and
+# resolved once in deploy_panel() so .env's APP_URL and nginx's server_name
+# can never drift apart; see resolved_app_url().
+APP_URL="${APP_URL:-}"
+
 # Non-interactive mode (for me-run automation via SSH)
 ASSUME_YES="${ASSUME_YES:-false}"
 
@@ -95,6 +101,17 @@ gen_psk() {
 
 gen_hex()    { openssl rand -hex "${1:-24}"; }        # shared secret / db password
 gen_admin()  { openssl rand -base64 18 | tr -d '/+=' | head -c 20; }  # readable admin pw
+
+# Resolve the panel URL once, so .env's APP_URL and nginx's server_name are
+# always derived from the same value. Honors an explicit APP_URL override
+# (installer.conf); otherwise defaults to http://<detected LAN IP>.
+resolved_app_url() {
+  if [ -n "$APP_URL" ]; then
+    echo "$APP_URL"
+  else
+    echo "http://$(hostname -I | awk '{print $1}')"
+  fi
+}
 
 # ---------------------------------------------------------------------------
 # 3. Preflight
@@ -415,6 +432,7 @@ deploy_panel() {
   {
     sed -i "s|^APP_ENV=.*|APP_ENV=production|" .env
     sed -i "s|^APP_DEBUG=.*|APP_DEBUG=false|" .env
+    sed -i "s|^APP_URL=.*|APP_URL=$(resolved_app_url)|" .env
     sed -i "s|^DB_CONNECTION=.*|DB_CONNECTION=pgsql|" .env
     sed -i "s|^DB_HOST=.*|DB_HOST=127.0.0.1|" .env
     sed -i "s|^DB_PORT=.*|DB_PORT=5432|" .env
@@ -471,13 +489,18 @@ configure_services() {
 
   [ "${PANEL_DEPLOYED:-false}" = "true" ] || { warn "Panel not deployed; skipping nginx vhost."; return 0; }
 
-  local server_ip
-  server_ip="$(hostname -I | awk '{print $1}')"
+  # Strip the scheme from the resolved APP_URL so nginx's server_name is the
+  # same host Laravel was configured with in deploy_panel() (Section 3.4:
+  # fixed management IP in production, or the detected LAN IP by default).
+  local app_host
+  app_host="$(resolved_app_url)"
+  app_host="${app_host#http://}"
+  app_host="${app_host#https://}"
 
   cat >/etc/nginx/sites-available/zonclave <<EOF
 server {
     listen 80;
-    server_name ${server_ip} _;
+    server_name ${app_host} _;
     root ${PANEL_DIR}/public;
 
     index index.php;
@@ -505,7 +528,7 @@ EOF
   nginx -t >>"$LOG_FILE" 2>&1 || die "nginx config test failed. See ${LOG_FILE}."
   systemctl enable --now php8.3-fpm >>"$LOG_FILE" 2>&1
   systemctl restart php8.3-fpm nginx >>"$LOG_FILE" 2>&1
-  ok "Web server configured for http://${server_ip}/"
+  ok "Web server configured for $(resolved_app_url)/"
 }
 
 # ---------------------------------------------------------------------------
@@ -530,9 +553,8 @@ self_check() {
 
   if [ "${PANEL_DEPLOYED:-false}" = "true" ]; then
     systemctl is-active --quiet nginx && ok "nginx active" || { warn "nginx not active"; fails=$((fails+1)); }
-    local ip; ip="$(hostname -I | awk '{print $1}')"
     if curl -fsS --max-time 8 "http://127.0.0.1/" >/dev/null 2>&1; then
-      ok "Panel responds on http://${ip}/"
+      ok "Panel responds on $(resolved_app_url)/"
     else
       warn "Panel did not respond on HTTP. Review ${LOG_FILE}."
       fails=$((fails+1))
@@ -547,6 +569,8 @@ self_check() {
 # ---------------------------------------------------------------------------
 summary() {
   step "Summary"
+  # RADIUS clients (UniFi) connect by IP, independent of the panel's
+  # APP_URL, so this stays the detected LAN IP even if APP_URL is a domain.
   local ip; ip="$(hostname -I | awk '{print $1}')"
 
   # Root-only summary file.
@@ -556,7 +580,7 @@ Zonclave - Install Summary
 PPSK / VLAN / WireGuard - Auth + Panel Node
 Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-Panel URL           : http://${ip}/
+Panel URL           : $(resolved_app_url)/
 Panel admin email   : ${ADMIN_EMAIL}
 Panel admin password: ${ADMIN_PASSWORD}
 
@@ -580,7 +604,7 @@ EOF
   echo -e "\n${C_GREEN}Installation complete.${C_RESET}"
   echo -e "Full credentials saved (root only): ${SUMMARY_FILE}\n"
   echo    "-------------------------------------------------------------"
-  echo    " Panel URL            : http://${ip}/"
+  echo    " Panel URL            : $(resolved_app_url)/"
   echo    " Panel admin email    : ${ADMIN_EMAIL}"
   echo    " Panel admin password : ${ADMIN_PASSWORD}"
   echo    " RADIUS server IP     : ${ip}"

@@ -29,6 +29,7 @@ Each VLAN is fail-closed: if its WireGuard tunnel drops, traffic is dropped, nev
 | `installer/install.sh` | One-command installer for the auth + panel node (Ubuntu Server 24.04 LTS) |
 | `db/` | Reference SQL schema and seed scripts for dev/test databases |
 | `docs/adr/` | Architecture decision records |
+| `docs/runbook/` | Manual OPNsense + UniFi configuration steps (Section 22: not installer-automated in Phase 1) |
 
 ## Key design points
 
@@ -102,7 +103,7 @@ sudo bash installer/install.sh
 sudo bash installer/install.sh --config installer.conf
 ```
 
-**Honest boundary (Section 24.2):** the installer configures that one host only. OPNsense (VLANs, WireGuard tunnels, gateways, firewall rules) and UniFi (SSID, RADIUS profile) are separate appliances and remain a documented manual runbook in Phase 1. Do not describe the installer as setting up the full end-to-end chain.
+**Honest boundary (Section 24.2):** the installer configures that one host only. OPNsense (VLANs, WireGuard tunnels, gateways, firewall rules) and UniFi (SSID, RADIUS profile) are separate appliances and remain a documented manual runbook in Phase 1: see [docs/runbook/phase1-opnsense-unifi.md](docs/runbook/phase1-opnsense-unifi.md). Do not describe the installer as setting up the full end-to-end chain.
 
 ## Git workflow
 

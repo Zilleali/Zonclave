@@ -76,6 +76,27 @@ class PpskStatsOverviewTest extends TestCase
         $this->assertNull($disabled->getChart());
     }
 
+    public function test_active_and_disabled_percentages_sum_to_100_even_with_other_statuses(): void
+    {
+        // PpskStatus also defines Provisioning and Error (Phase 2), which
+        // have no card of their own here. Percentages must stay anchored
+        // to Active + Disabled, not the grand total, or they would
+        // silently stop summing to 100% the moment such a row exists.
+        PpskGroup::factory()->create(['status' => PpskStatus::Active]);
+        PpskGroup::factory()->create(['status' => PpskStatus::Disabled]);
+        PpskGroup::factory()->create(['status' => PpskStatus::Provisioning]);
+
+        $widget = new PpskStatsOverview;
+        $ref = new \ReflectionMethod($widget, 'getStats');
+        $ref->setAccessible(true);
+
+        [$total, $active, $disabled] = $ref->invoke($widget);
+
+        $this->assertSame(3, $total->getValue());
+        $this->assertSame('50% of Active + Disabled', $active->getDescription());
+        $this->assertSame('50% of Active + Disabled', $disabled->getDescription());
+    }
+
     public function test_filtering_by_the_active_card_url_shows_only_active_groups(): void
     {
         $this->actingAs(User::factory()->create());

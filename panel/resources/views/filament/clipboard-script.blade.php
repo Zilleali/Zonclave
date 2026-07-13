@@ -30,9 +30,14 @@
             document.body.appendChild(textarea);
             textarea.focus();
             textarea.select();
-            document.execCommand('copy');
+            var copied = document.execCommand('copy');
             document.body.removeChild(textarea);
-            notifySuccess();
+
+            if (copied) {
+                notifySuccess();
+            } else {
+                notifyFailure();
+            }
         } catch (error) {
             notifyFailure();
         }

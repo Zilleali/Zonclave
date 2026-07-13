@@ -26,6 +26,15 @@ class PpskStatsOverview extends StatsOverviewWidget
         $active = PpskGroup::query()->where('status', PpskStatus::Active)->count();
         $disabled = PpskGroup::query()->where('status', PpskStatus::Disabled)->count();
 
+        // Percentages are of each other (Active + Disabled), not of $total.
+        // PpskStatus also defines Provisioning and Error (Section 7, for
+        // Phase 2 automation); those rows still count toward $total on the
+        // card above but have no card of their own here, so dividing by
+        // $total would make these two percentages silently stop summing to
+        // 100% the moment such a row exists. Dividing by their own sum
+        // keeps that guarantee regardless of what else is in the registry.
+        $knownStatusTotal = $active + $disabled;
+
         return [
             Stat::make('Total PPSK groups', $total)
                 ->chart($this->cumulativeTotalByDay())
@@ -33,12 +42,12 @@ class PpskStatsOverview extends StatsOverviewWidget
 
             Stat::make('Active', $active)
                 ->color('success')
-                ->description($this->percentOf($active, $total).' of total')
+                ->description($this->percentOf($active, $knownStatusTotal).' of Active + Disabled')
                 ->url($this->filteredByStatus(PpskStatus::Active)),
 
             Stat::make('Disabled', $disabled)
                 ->color('gray')
-                ->description($this->percentOf($disabled, $total).' of total')
+                ->description($this->percentOf($disabled, $knownStatusTotal).' of Active + Disabled')
                 ->url($this->filteredByStatus(PpskStatus::Disabled)),
         ];
     }

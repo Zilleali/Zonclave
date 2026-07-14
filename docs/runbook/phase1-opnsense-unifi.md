@@ -47,26 +47,41 @@ Re-confirm this per box (per Section 0's own advice) rather than assuming
 it's identical at every site - Protectli units can ship with different NIC
 revisions even across the same model line.
 
-**Open question, blocking Section 3.1 at this site:** all 6 physical ports
-are already assigned (WAN, LAN, and LAN235-238, one dedicated NIC each -
-not stacked as tagged sub-interfaces of a shared trunk). There is currently
-no free physical port for a new trunk cable carrying VLANs 300-304. Confirm
-with Sancover before starting Section 3.1 whether `igb1` (LAN)'s
-switch-side port is already configured as an 802.1Q trunk (in which case
-VLANs 300-304 are added as tagged sub-interfaces of `igb1`, no new cable
-needed) or carries only untagged traffic today (in which case the UniFi
-switch port feeding `igb1` needs to be converted to a trunk first, or a
-different physical path found). Do not guess this - get it in writing from
-whoever manages the switch config, since guessing wrong here risks the
-exact leak Section 12 exists to prevent.
+**Resolved 2026-07-14 (Sancover):** confirmed no 802.1Q trunk exists on
+this box today - LAN235 through LAN238 are genuinely four separate
+physical legs (`igb2`-`igb5`), not tagged sub-interfaces of a shared
+trunk. Sancover's proposed direction: free up one physical port and run
+both the existing LAN VLANs (235-238) *and* the new PPSK VLANs (300-304)
+through the single trunk this project creates on that port. This matches
+the architecture Section 9 already assumes (VLAN sub-interfaces on one
+LAN-facing trunk); the existing box just wasn't wired that way yet.
 
-**Also confirm:** the box already has an OpenVPN client tunnel
-(`ovpnc1`, "PIA UK Londen"). This is a commercial VPN (Private Internet
-Access), not a residential-IP provider - its exit IPs are datacenter IPs,
-not real ISP-assigned residential addresses. Confirm this tunnel is
-pre-existing/unrelated to this project, not what's meant by "residential
-VPN provider" in Section 3.3, before treating any of the 5 new tunnels per
-router as already provisioned.
+**Still open before Section 3.1 can start:** the exact physical plan is
+not yet confirmed - specifically, which port becomes the trunk (`igb1`
+converted in place, or a currently-used `igb2`-`igb5` port freed up and
+repurposed), whether `igb1`'s native/untagged LAN traffic also moves onto
+the trunk as a tagged VLAN or stays untagged, and the cabling/switch-side
+changes needed on the UniFi switch port(s) involved. Get this in writing
+before touching anything.
+
+**Treat this as a live-production change, not a green-field install.**
+Migrating LAN235-238 off dedicated ports onto a shared trunk touches
+VLANs already carrying real traffic. Schedule a maintenance window, and
+after the migration, re-run a version of the Section 10 isolation test
+(test 8 in Section 21.1) against the *existing* VLANs too, not just the
+new ones - confirm 235-238 still can't reach each other or the management
+interface post-migration, exactly as you'll confirm for 300-304.
+
+**Resolved 2026-07-14 (Sancover):** the `ovpnc1` ("PIA UK Londen") OpenVPN
+client was added for testing only and will be removed by Sancover. It was
+never the intended provider for this project - confirmed the intention is
+genuine residential VPN providers, not commercial/datacenter VPN services
+like PIA. Do not reuse this tunnel or its config pattern for any of the 5
+new WireGuard tunnels per router. Once removed (**VPN > OpenVPN > Clients**
+on the OPNsense box, delete the PIA client, then confirm it no longer
+appears under Interfaces > Assignments), the freed capacity has no bearing
+on the trunk-port question above - OpenVPN clients are virtual interfaces
+and were never occupying a physical NIC.
 
 ## 1. Quick reference: the fixed Phase 1 block
 

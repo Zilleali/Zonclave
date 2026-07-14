@@ -75,41 +75,40 @@ Note: client has 4 x Protectli FW6E units total. The 4th is a spare or future lo
 | --- | --- | --- |
 | Zonclave server | Beelink SER5 Pro (AMD Ryzen 7 5800H, 16GB RAM, 500GB NVMe) | Hosts FreeRADIUS + PostgreSQL + Zonclave panel |
 | Server OS | Ubuntu Server 24.04 LTS | Fresh install required (decision updated 2026-07-13, was 22.04) |
-| Server network | VLAN 205, static IP 172.16.74.10 | Management VLAN, see Section 3.4 |
+| Server network | Flat LAN, static IP 192.168.1.250 | No dedicated management VLAN at Kelder, see Section 3.4 |
 | VPN | Residential WireGuard peer configs from VPN provider | 5 per router, 15 total for Phase 1 |
 
-### 3.4 Management VLAN (server access)
+### 3.4 Management network (server access)
 
-The Beelink server sits behind OPNsense with no public IP. Access is via a dedicated management VLAN.
+**Decision recorded 2026-07-14 (supersedes the VLAN 205 decision below):** checking the live OPNsense config at Office SancoMedia Kelder confirmed the VLAN/trunk work described below was never actually built - OPNsense's LAN interface is still on its factory network, and the switch, Cloud Key, and APs all sit there too. Given that, Phase 1 at Kelder skips a dedicated management VLAN entirely: the Zonclave server, switch, Cloud Key, and APs all stay on the existing flat LAN. RADIUS (UDP 1812/1813) and the panel (HTTP) don't require VLAN isolation to function, and the devices sharing this flat LAN are the office's own existing hardware, not the PPSK guest devices the isolation in Section 10 exists to contain - those stay on VLAN 300-304 exactly as designed, unaffected by this change. This is a Kelder-specific simplification, not a reversal of the PPSK VLAN mechanism itself.
 
 | Item | Value |
 | --- | --- |
-| VLAN ID | 205 |
-| Subnet | 172.16.74.0/24 |
-| Gateway (OPNsense) | 172.16.74.1 |
-| Server static IP | 172.16.74.10 |
-| DHCP range | 172.16.74.20 to 172.16.74.50 (for other management devices) |
+| Network | 192.168.1.0/24 (flat, untagged - OPNsense's existing LAN) |
+| Gateway (OPNsense) | 192.168.1.1 |
+| Zonclave server static IP | 192.168.1.250 (outside the existing 192.168.1.10-192.168.1.245 DHCP pool - set statically on the host/VM and add a static mapping in OPNsense's Services > DHCPv4 > [LAN] so it's never handed out to another device) |
+| Switch (USW-16-PoE) | 192.168.1.12 (existing) |
 
-Remote access for ZILL: WireGuard admin tunnel on OPNsense peering to ZILL's machine. This gives SSH access to 172.16.74.10 (Zonclave server) and web UI access to OPNsense and UniFi controller from anywhere, without any public port-forwarding.
+Remote access for ZILL: WireGuard admin tunnel on OPNsense peering to ZILL's machine, giving SSH access to the Zonclave server and web UI access to OPNsense and the UniFi controller from anywhere, without public port-forwarding. Unaffected by this change other than the target IP being 192.168.1.250 instead of a VLAN 205 address.
 
-**Decision recorded 2026-07-14:** VLAN 205 also serves as the device-management VLAN for the UniFi switch, Cloud Key, and access points at each site, not only the Zonclave server. This was already implied by the topology below (one trunk carrying 205 alongside the PPSK VLANs, Cloud Key marked "management") and by the DHCP range above being sized for "other management devices"; it is now explicit. Implementation: AP-facing switch ports use native/untagged VLAN 205 (UniFi APs have no separate per-device management VLAN field independent of port tagging), with the PPSK VLANs allowed as tagged traffic on the same ports. See `docs/runbook/phase1-opnsense-unifi.md` Section 3.5 for the per-site implementation steps.
-
-Topology at each location:
+Topology at Kelder:
 
 ```text
 Internet
     |
-Protectli FW6E (OPNsense)
-    |  (trunk: VLAN 205 + VLAN 300-399 + existing VLANs)
-UniFi USW-16-PoE
+Protectli FW6E (OPNsense) - LAN 192.168.1.0/24 (flat, untagged)
+    |  (trunk: VLAN 300-304 tagged + existing VLANs; management traffic untagged)
+UniFi USW-16-PoE (192.168.1.12)
     |
-    ├── Cloud Key Gen2+ (management)
+    ├── Cloud Key Gen2+ (management, flat LAN)
     ├── U6+ AP x5 (broadcasts PPSK SSID)
-    └── Beelink SER5 Pro (VLAN 205, IP 172.16.74.10)
+    └── Zonclave server (192.168.1.250)
          - FreeRADIUS :1812/1813
          - PostgreSQL :5432
          - Zonclave panel :80
 ```
+
+**Superseded decision (kept for history, decision recorded 2026-07-14, same day):** VLAN 205 (subnet 172.16.74.0/24, gateway 172.16.74.1, server at 172.16.74.10, DHCP range 172.16.74.20-172.16.74.50) was originally planned as a dedicated management VLAN, later extended to also cover the switch/Cloud Key/APs. Neither was ever implemented on the live OPNsense box, and Section 3.4 above replaces it for Kelder. VLAN 205 remains reserved and unused (Section 5) - if a later phase or a different site wants the extra isolation, it can still be stood up the same way VLAN 300-304 are.
 
 ## 4. Phasing
 
@@ -139,7 +138,7 @@ UniFi USW-16-PoE
 
 | Item | Reserved range | Notes |
 | --- | --- | --- |
-| Management VLAN | **205** | Zonclave server and admin access. Subnet 172.16.74.0/24 |
+| Management VLAN | **205** (reserved, unused at Kelder) | Originally planned for the Zonclave server and admin access, subnet 172.16.74.0/24. Not implemented - Kelder uses the flat LAN instead, see Section 3.4. Still reserved for a future site or phase that wants the isolation. |
 | PPSK VLAN ID block | **300 onward** | Phase 1 uses 300 to 304 (5 VLANs, replicated identically on all three routers). Block is open-ended; Phase 2 simply continues from 305 onward |
 | PPSK subnet scheme | **10.30.X.0/24** where X = VLAN minus 300 | VLAN 300 = 10.30.0.0/24, VLAN 301 = 10.30.1.0/24, VLAN 314 = 10.30.14.0/24, and so on |
 
@@ -380,7 +379,7 @@ Three candidate stacks are documented so the choice is explicit. All three can m
 
 Whichever stack is chosen, it reads and writes `ppsk_groups` as the source of truth and derives `radcheck`/`radreply` through the single path in Section 23. The stack choice does not change the data model or the RADIUS boundary.
 
-**Access (decision recorded 2026-07-13):** local network only. The panel is reached via management VLAN 205 or ZILL's WireGuard admin tunnel (Section 3.4). No internet exposure, no public port-forwarding.
+**Access (decision recorded 2026-07-13):** local network only. The panel is reached via the flat management LAN or ZILL's WireGuard admin tunnel (Section 3.4 - updated 2026-07-14, Kelder has no dedicated management VLAN). No internet exposure, no public port-forwarding.
 
 ### Page-by-page spec
 
@@ -503,8 +502,8 @@ This is only feasible cleanly because of the service-layer separation in Section
 - [x] Panel stack: **Laravel + Filament**
 - [x] Database: **PostgreSQL**
 - [x] Installer OS: **Ubuntu Server 24.04 LTS** (updated 2026-07-13, was 22.04; 24.04 is what will be installed on the Beelink)
-- [x] Server: Beelink SER5 Pro, VLAN 205, static IP 172.16.74.10
-- [x] Management VLAN: **205**, subnet 172.16.74.0/24
+- [x] Server: Beelink SER5 Pro, flat LAN, static IP 192.168.1.250 (updated 2026-07-14, was VLAN 205 static IP 172.16.74.10 - see Section 3.4)
+- [x] Management VLAN: **none at Kelder** - flat LAN 192.168.1.0/24 used directly (decision reversed 2026-07-14, see Section 3.4). VLAN 205 / subnet 172.16.74.0/24 remains reserved and unused (Section 5)
 - [x] FreeRADIUS hosting: Beelink SER5 Pro, co-located with the panel
 - [x] Phase 1 tunnel count: **5 per router, 15 total** (3 routers x 5 tunnels)
 - [x] Scope: **3 locations**, all Protectli FW6E / OPNsense. 4th unit is spare.
@@ -514,7 +513,7 @@ This is only feasible cleanly because of the service-layer separation in Section
 - [x] DNS design: **DNS-through-tunnel per VLAN** (Section 11). Decided 2026-07-13.
 - [x] Storage pattern for WireGuard configs: **pattern 2, keys stay on OPNsense only** (Section 15). Decided 2026-07-13.
 - [x] Panel admin accounts: **single admin** (Section 16.1). Decided 2026-07-13.
-- [x] Panel access: **local network only**, via VLAN 205 / WireGuard admin tunnel (Section 16). Decided 2026-07-13.
+- [x] Panel access: **local network only**, via the flat management LAN or ZILL's WireGuard admin tunnel (Section 16). Decided 2026-07-13, network detail updated 2026-07-14 per Section 3.4.
 
 - [x] UniFi Network application version: **10.4.57** confirmed on the Office SancoMedia Kelder Cloud Key Gen2+, well above the 7.5.187 minimum for RADIUS-based PPSK (Section 8.3). Decided 2026-07-14; re-verify per site for the other two locations.
 - [x] WireGuard peer configs for Office SancoMedia Kelder: **5 per router, confirmed ready** by Sancover 2026-07-14. Sancover's stated goal is to add more groups later; Phase 1 stays scoped to 5 per router regardless (see Section 4).

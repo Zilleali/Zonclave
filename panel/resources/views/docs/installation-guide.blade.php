@@ -134,7 +134,7 @@ vendor/bin/phpstan analyse</pre>
             <section class="card doc-cta">
                 <h2 style="font-size:1.125rem">Questions about deploying Zonclave?</h2>
                 <div class="hero-actions" style="margin-top:1rem">
-                    <a href="mailto:hello@developerzon.com?subject=Zonclave%20inquiry" class="btn btn-primary">Get in touch</a>
+                    <a href="mailto:zilleali1245@gmail.com?subject=Zonclave%20inquiry" class="btn btn-primary">Get in touch</a>
                 </div>
             </section>
 

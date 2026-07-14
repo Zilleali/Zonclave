@@ -29,7 +29,7 @@
                     <a href="{{ url('/#features') }}">Features</a>
                     <a href="{{ url('/docs') }}">Documentation</a>
                     <a href="{{ url('/#about') }}">About</a>
-                    <a href="mailto:hello@developerzon.com?subject=Zonclave%20inquiry" class="btn btn-primary btn-sm">Get in touch</a>
+                    <a href="mailto:zilleali1245@gmail.com?subject=Zonclave%20inquiry" class="btn btn-primary btn-sm">Get in touch</a>
                 </nav>
 
                 <label for="nav-toggle" class="nav-toggle-label" aria-label="Toggle menu">
@@ -44,7 +44,7 @@
                 <a href="{{ url('/#features') }}">Features</a>
                 <a href="{{ url('/docs') }}">Documentation</a>
                 <a href="{{ url('/#about') }}">About</a>
-                <a href="mailto:hello@developerzon.com?subject=Zonclave%20inquiry" class="btn btn-primary btn-sm">Get in touch</a>
+                <a href="mailto:zilleali1245@gmail.com?subject=Zonclave%20inquiry" class="btn btn-primary btn-sm">Get in touch</a>
             </nav>
         </header>
 
@@ -57,7 +57,7 @@
                 <p>&copy; {{ date('Y') }} Zonclave, a Developer Zon product.</p>
                 <div class="footer-links">
                     <a href="{{ url('/docs') }}">Documentation</a>
-                    <a href="mailto:hello@developerzon.com?subject=Zonclave%20inquiry">Contact</a>
+                    <a href="mailto:zilleali1245@gmail.com?subject=Zonclave%20inquiry">Contact</a>
                 </div>
             </div>
         </footer>

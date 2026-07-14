@@ -16,7 +16,7 @@
                 the internet through its own distinct residential IP - managed entirely from one clean admin panel.
             </p>
             <div class="hero-actions">
-                <a href="mailto:hello@developerzon.com?subject=Zonclave%20inquiry" class="btn btn-primary">Get in touch</a>
+                <a href="mailto:zilleali1245@gmail.com?subject=Zonclave%20inquiry" class="btn btn-primary">Get in touch</a>
                 <a href="{{ url('/docs') }}" class="btn btn-secondary">View documentation</a>
             </div>
         </div>

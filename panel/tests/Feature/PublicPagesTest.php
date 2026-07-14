@@ -31,12 +31,17 @@ class PublicPagesTest extends TestCase
         $this->get('/docs/commands-reference')->assertOk()->assertSee('Command Reference');
     }
 
+    public function test_opnsense_configuration_guide_is_reachable(): void
+    {
+        $this->get('/docs/opnsense-configuration')->assertOk()->assertSee('OPNsense Configuration Guide');
+    }
+
     public function test_public_pages_do_not_link_to_github_or_internal_docs(): void
     {
         // Section 20/25.3-style guardrail for this feature: the runbook and
         // CLAUDE.md contain real client infrastructure details and must
         // never be linked from a public page.
-        foreach (['/', '/docs', '/docs/installation-guide', '/docs/commands-reference'] as $url) {
+        foreach (['/', '/docs', '/docs/installation-guide', '/docs/commands-reference', '/docs/opnsense-configuration'] as $url) {
             $html = $this->get($url)->getContent();
 
             $this->assertIsString($html);

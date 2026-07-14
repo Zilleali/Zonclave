@@ -20,6 +20,11 @@
                 <h2>Command reference</h2>
                 <p>Every command used to develop, test, and install Zonclave - a cheat sheet, no explanation.</p>
             </a>
+
+            <a href="{{ url('/docs/opnsense-configuration') }}" class="card card-link">
+                <h2>OPNsense configuration guide</h2>
+                <p>How the network side is built: VLANs, WireGuard tunnels, fail-closed firewall policy, DNS, and the UniFi integration.</p>
+            </a>
         </div>
     </section>
 

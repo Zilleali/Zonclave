@@ -56,21 +56,40 @@ through the single trunk this project creates on that port. This matches
 the architecture Section 9 already assumes (VLAN sub-interfaces on one
 LAN-facing trunk); the existing box just wasn't wired that way yet.
 
-**Still open before Section 3.1 can start:** the exact physical plan is
-not yet confirmed - specifically, which port becomes the trunk (`igb1`
-converted in place, or a currently-used `igb2`-`igb5` port freed up and
-repurposed), whether `igb1`'s native/untagged LAN traffic also moves onto
-the trunk as a tagged VLAN or stays untagged, and the cabling/switch-side
-changes needed on the UniFi switch port(s) involved. Get this in writing
-before touching anything.
+**Resolved 2026-07-14 (Sancover): trunk port is `igb5`.** `igb1` (LAN)
+stays untagged, unchanged - it is not part of this migration. `igb5`
+(currently the plain, untagged LAN238 leg) becomes the trunk, carrying
+nine tagged VLANs: the four existing ones (235, 236, 237, 238) plus the
+five new ones (300-304). Concretely, on the OPNsense side this means:
+
+1. Remove the flat `igb5` assignment currently backing LAN238.
+2. Create tagged VLAN sub-interfaces on `igb5` for 235, 236, 237, and 238
+   (e.g. `igb5_vlan235` ... `igb5_vlan238`), and re-point each existing
+   interface assignment (LAN235-238) at its new tagged sub-interface
+   instead of its old dedicated NIC. Keep the same IPv4 addresses, DHCP
+   ranges, and firewall rules on each - the goal is that end devices on
+   235-238 see no change at all, only the underlying wiring/tagging
+   changes.
+3. `igb2`, `igb3`, and `igb4` become free once 235, 236, and 237 are moved
+   off them. Nothing in this project uses them; leave them idle unless
+   Sancover wants them for something else.
+4. Create the five new tagged VLAN 300-304 sub-interfaces on `igb5`
+   alongside the migrated ones, per Section 3.1 below.
+5. On the UniFi switch side, the port feeding `igb5` needs to become an
+   802.1Q trunk allowing tags 235, 236, 237, 238, 300, 301, 302, 303, 304
+   (native/untagged VLAN on that port should stay whatever it already is,
+   almost certainly not one of these nine).
 
 **Treat this as a live-production change, not a green-field install.**
 Migrating LAN235-238 off dedicated ports onto a shared trunk touches
-VLANs already carrying real traffic. Schedule a maintenance window, and
-after the migration, re-run a version of the Section 10 isolation test
-(test 8 in Section 21.1) against the *existing* VLANs too, not just the
-new ones - confirm 235-238 still can't reach each other or the management
-interface post-migration, exactly as you'll confirm for 300-304.
+VLANs already carrying real traffic. Schedule a maintenance window, do
+the migration and the switch-side trunk config together (a half-migrated
+state - OPNsense expecting tags the switch isn't sending yet, or vice
+versa - is a guaranteed outage for 235-238), and afterward re-run a
+version of the Section 10 isolation test (test 8 in Section 21.1) against
+the *existing* VLANs too, not just the new ones - confirm 235-238 still
+can't reach each other or the management interface post-migration,
+exactly as you'll confirm for 300-304.
 
 **Resolved 2026-07-14 (Sancover):** the `ovpnc1` ("PIA UK Londen") OpenVPN
 client was added for testing only and will be removed by Sancover. It was

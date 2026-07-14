@@ -28,6 +28,7 @@ FreeRADIUS only ever does authentication and VLAN assignment. OPNsense only ever
 | `docs/runbook/` | The manual OPNsense + UniFi network configuration steps (Section 22: not automated by the installer in Phase 1). |
 | `docs/commands-reference.md` | Every command in this project, with no explanation - a cheat sheet. |
 | `docs/installation-guide.md` | This file. |
+| `docs/opnsense-configuration.md` | The general OPNsense configuration pattern (VLANs, tunnels, firewall ordering), independent of any one site. |
 
 ## 3. Prerequisites
 
@@ -109,7 +110,7 @@ It configures the auth + panel node only. It does not touch OPNsense or UniFi - 
 
 ## 6. Setting up the network (OPNsense + UniFi)
 
-This is the part the installer can't automate. Follow [docs/runbook/phase1-opnsense-unifi.md](runbook/phase1-opnsense-unifi.md) in full - it covers, per router:
+This is the part the installer can't automate. See [docs/opnsense-configuration.md](opnsense-configuration.md) for the general pattern, then follow [docs/runbook/phase1-opnsense-unifi.md](runbook/phase1-opnsense-unifi.md) in full for this project's site-specific steps - it covers, per router:
 
 1. Confirming the real NIC driver names and the physical trunk port topology (every site is different - do not assume the last site's answers apply to this one).
 2. Creating the five PPSK VLAN interfaces (300-304), their WireGuard tunnels, gateways, and the paired allow/block firewall rules that make the fail-closed design actually fail closed.

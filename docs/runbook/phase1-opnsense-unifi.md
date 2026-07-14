@@ -13,10 +13,23 @@ the other way around.
 Confirm these Section 20 items are actually true for the site you are about
 to configure, not assumed:
 
-- [ ] The UniFi Network application version installed on the Cloud Key
-      Gen2+ supports RADIUS-based Private PSK / Identity PSK. Verify in the
-      Network app's own release notes; this has moved around across
-      versions (Section 8.3).
+- [x] **Resolved 2026-07-14:** the UniFi Network application version
+      installed on the Cloud Key Gen2+ (Office SancoMedia Kelder) is
+      **10.4.57**, confirmed via the app's own footer. Ubiquiti added PPSK
+      support in Network 7.5.187 (October 2023), so 10.4.57 is well within
+      range. Ubiquiti also publishes a dedicated guide for this project's
+      exact flow - PPSK combined with RADIUS for dynamic per-SSID VLAN
+      assignment - see [Using PPSK / RADIUS for Multiple VLANs On an SSID
+      in UniFi Network](https://help.ui.com/hc/en-us/articles/29887064407319-Using-PPSK-RADIUS-for-Multiple-VLANs-On-an-SSID-in-UniFi-Network),
+      follow it for the exact current field names/steps in Section 4.2
+      rather than assuming a fixed UI path (Section 8.3's own caveat).
+      One real constraint confirmed from Ubiquiti's docs: PPSK currently
+      only works with **WPA2, on 2.4GHz and 5GHz** - no WPA3, no 6GHz, and
+      it cannot be combined with a captive portal or RADIUS MAC auth. If
+      the SSID needs WPA3 or 6GHz for any reason, that needs resolving
+      before Section 4.2.
+      Re-verify this per site (Section 0's own advice) - the other two
+      locations may run a different Network version.
 - [ ] All 5 residential WireGuard peer configs for this router are in hand
       (endpoint host:port, peer public key, allowed IPs, and this side's
       keypair or the provider's assigned one) before starting Section 3
@@ -348,12 +361,20 @@ version per Section 8.3's own caveat).
 
 ### 4.2 SSID
 
+Confirmed 2026-07-14: Network 10.4.57 (this site) supports this. Follow
+Ubiquiti's own current guide rather than the field names below verbatim -
+[Using PPSK / RADIUS for Multiple VLANs On an SSID in UniFi
+Network](https://help.ui.com/hc/en-us/articles/29887064407319-Using-PPSK-RADIUS-for-Multiple-VLANs-On-an-SSID-in-UniFi-Network)
+
+- since Section 8.3 already flags that exact menu labels move across
+versions. The essentials, regardless of label:
+
 **Settings > WiFi > [create/edit SSID]:**
 
-- Security Protocol: WPA2/WPA3 Enterprise or the specific "Private PSK" /
-  "Identity PSK" mode your Network app version exposes (Section 8.3 - this
-  has moved around across versions, confirm against current docs before
-  assuming a menu label)
+- Security Protocol: **WPA2 only** - Ubiquiti's PPSK feature does not
+  support WPA3 or 6GHz as of this writing, and cannot be combined with a
+  captive portal or RADIUS MAC auth. Confirm nothing else about this
+  deployment needs WPA3/6GHz on this SSID before proceeding.
 - RADIUS profile: `Zonclave` (from 4.1)
 - Network/VLAN: leave this **not** pinned to a single VLAN - the entire
   point of PPSK is that FreeRADIUS assigns the VLAN per credential via

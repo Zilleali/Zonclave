@@ -1,0 +1,26 @@
+@extends('layouts.public')
+
+@section('title', 'Documentation - Zonclave')
+@section('description', 'Zonclave documentation: installation guide and command reference.')
+
+@section('content')
+
+    <section class="doc-article">
+        <p class="eyebrow">Documentation</p>
+        <h1>Zonclave docs</h1>
+        <p class="doc-lede">Everything needed to set up, install, and run Zonclave.</p>
+
+        <div class="link-grid">
+            <a href="{{ url('/docs/installation-guide') }}" class="card card-link">
+                <h2>Installation guide</h2>
+                <p>The full start-to-finish manual: panel setup, production installation, and how to use it day to day.</p>
+            </a>
+
+            <a href="{{ url('/docs/commands-reference') }}" class="card card-link">
+                <h2>Command reference</h2>
+                <p>Every command used to develop, test, and install Zonclave - a cheat sheet, no explanation.</p>
+            </a>
+        </div>
+    </section>
+
+@endsection

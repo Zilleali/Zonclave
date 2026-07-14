@@ -126,6 +126,8 @@ UniFi USW-16-PoE
 
 ### Phase 2 - Scale-out (once budget allows)
 
+**Confirmed with Sancover 2026-07-14:** the 5 WireGuard peer configs per router are ready and Phase 1 is explicitly scoped to 5 tunnels per router (15 total), not more. Sancover's stated goal is to add more PPSK/VLAN/tunnel groups later, which is exactly what this section already exists to cover - the VLAN block (Section 5) and WireGuard/gateway naming (Section 6) are already open-ended and designed to extend without rework, so "add more in the future" is a Phase 2 continuation, not a Phase 1 scope change. Do not provision more than 5 tunnels per router in Phase 1 on the strength of this stated future intent.
+
 - Expand from 5 to 10 up to 100+ PPSK/VLAN/tunnel groups (repeat the Phase 1 pattern; scripting/automation of OPNsense config strongly recommended at this point)
 - Add device activity logs to the panel (who authenticated, when, which PPSK, session duration/data use)
 - Extend the installer to drive OPNsense provisioning via API (Section 19 and Section 24)
@@ -514,10 +516,12 @@ This is only feasible cleanly because of the service-layer separation in Section
 - [x] Panel admin accounts: **single admin** (Section 16.1). Decided 2026-07-13.
 - [x] Panel access: **local network only**, via VLAN 205 / WireGuard admin tunnel (Section 16). Decided 2026-07-13.
 
+- [x] UniFi Network application version: **10.4.57** confirmed on the Office SancoMedia Kelder Cloud Key Gen2+, well above the 7.5.187 minimum for RADIUS-based PPSK (Section 8.3). Decided 2026-07-14; re-verify per site for the other two locations.
+- [x] WireGuard peer configs for Office SancoMedia Kelder: **5 per router, confirmed ready** by Sancover 2026-07-14. Sancover's stated goal is to add more groups later; Phase 1 stays scoped to 5 per router regardless (see Section 4).
+
 **Still open (resolve before or during first session):**
 
-- [ ] Confirm UniFi Network application version supports RADIUS-based Private PSK (ZILL verifies over RustDesk during first access session)
-- [ ] Confirm the 5 WireGuard peer configs per router are ready for all 3 locations (15 total) before OPNsense config begins
+- [ ] Confirm the 5 WireGuard peer configs per router are ready for Location 2 and Location 3 (10 more, 15 total) before OPNsense config begins there
 
 ## 21. Acceptance Testing (Phase 1)
 

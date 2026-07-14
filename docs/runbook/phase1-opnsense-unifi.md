@@ -30,11 +30,17 @@ to configure, not assumed:
       before Section 4.2.
       Re-verify this per site (Section 0's own advice) - the other two
       locations may run a different Network version.
-- [ ] All 5 residential WireGuard peer configs for this router are in hand
-      (endpoint host:port, peer public key, allowed IPs, and this side's
-      keypair or the provider's assigned one) before starting Section 3
-      below. Provisioning tunnels with placeholder peers and forgetting to
-      swap them in is the most likely way to accidentally leak traffic out
+- [x] **Confirmed 2026-07-14 (Sancover):** all 5 residential WireGuard peer
+      configs for this router are ready. Sancover's stated goal is to add
+      more groups in the future - Phase 1 still stops at 5 per router
+      regardless (CLAUDE.md Section 4); don't provision more on the
+      strength of that stated intent. Before starting Section 3 below,
+      double check the actual peer config values in hand (endpoint
+      host:port, peer public key, allowed IPs, and this side's keypair or
+      the provider's assigned one) - "confirmed ready" isn't the same as
+      "the exact values are open in front of you" when you sit down to do
+      3.2. Provisioning a tunnel with a placeholder peer and forgetting to
+      swap it in is the most likely way to accidentally leak traffic out
       the wrong path.
 - [ ] The FreeRADIUS node (Beelink, Section 3.4) is already up, reachable at
       `172.16.74.10:1812/1813`, and `radtest` against a seeded PPSK returns
@@ -110,16 +116,16 @@ the *existing* VLANs too, not just the new ones - confirm 235-238 still
 can't reach each other or the management interface post-migration,
 exactly as you'll confirm for 300-304.
 
-**Resolved 2026-07-14 (Sancover):** the `ovpnc1` ("PIA UK Londen") OpenVPN
-client was added for testing only and will be removed by Sancover. It was
-never the intended provider for this project - confirmed the intention is
-genuine residential VPN providers, not commercial/datacenter VPN services
-like PIA. Do not reuse this tunnel or its config pattern for any of the 5
-new WireGuard tunnels per router. Once removed (**VPN > OpenVPN > Clients**
-on the OPNsense box, delete the PIA client, then confirm it no longer
-appears under Interfaces > Assignments), the freed capacity has no bearing
-on the trunk-port question above - OpenVPN clients are virtual interfaces
-and were never occupying a physical NIC.
+**Resolved and removed 2026-07-14 (Sancover):** the `ovpnc1` ("PIA UK
+Londen") OpenVPN client was added for testing only and has been removed.
+It was never the intended provider for this project - confirmed the
+intention is genuine residential VPN providers, not commercial/datacenter
+VPN services like PIA. Do not reuse this tunnel or its config pattern for
+any of the 5 new WireGuard tunnels per router. Before starting Section 3,
+confirm on the actual box that it no longer appears under Interfaces >
+Assignments - the freed capacity has no bearing on the trunk-port plan
+above either way, since OpenVPN clients are virtual interfaces and were
+never occupying a physical NIC.
 
 ## 1. Quick reference: the fixed Phase 1 block
 
@@ -305,6 +311,10 @@ own device-management traffic, not just the Zonclave server. This matches
 the original Section 3.4 topology diagram (`VLAN 205 + VLAN 300-399` on
 one trunk, Cloud Key marked "(management)"); it just hadn't been built
 yet. Do this once per router, not per VLAN.
+
+**Confirmed 2026-07-14 (Sancover):** the `172.16.74.0/24` pool (Section
+3.4's already-fixed subnet) is the one in use for this - no conflict with
+anything else on site, matches what's below exactly.
 
 **Interfaces > Other Types > VLAN > Add:** parent `igb5`, tag `205`,
 description `MGMT_VLAN205` (Section 6's fixed name for this interface).

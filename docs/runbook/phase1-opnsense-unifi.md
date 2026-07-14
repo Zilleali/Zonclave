@@ -72,8 +72,11 @@ LAN-facing trunk); the existing box just wasn't wired that way yet.
 **Resolved 2026-07-14 (Sancover): trunk port is `igb5`.** `igb1` (LAN)
 stays untagged, unchanged - it is not part of this migration. `igb5`
 (currently the plain, untagged LAN238 leg) becomes the trunk, carrying
-nine tagged VLANs: the four existing ones (235, 236, 237, 238) plus the
-five new ones (300-304). Concretely, on the OPNsense side this means:
+**ten** tagged VLANs: the four existing ones (235, 236, 237, 238), the
+five new PPSK ones (300-304), and management VLAN 205 (Section 3.4 -
+decided 2026-07-14 to also carry AP/switch/router device management, not
+just the Zonclave server; see Section 3.5 below). Concretely, on the
+OPNsense side this means:
 
 1. Remove the flat `igb5` assignment currently backing LAN238.
 2. Create tagged VLAN sub-interfaces on `igb5` for 235, 236, 237, and 238
@@ -88,10 +91,13 @@ five new ones (300-304). Concretely, on the OPNsense side this means:
    Sancover wants them for something else.
 4. Create the five new tagged VLAN 300-304 sub-interfaces on `igb5`
    alongside the migrated ones, per Section 3.1 below.
-5. On the UniFi switch side, the port feeding `igb5` needs to become an
-   802.1Q trunk allowing tags 235, 236, 237, 238, 300, 301, 302, 303, 304
-   (native/untagged VLAN on that port should stay whatever it already is,
-   almost certainly not one of these nine).
+5. Create a tagged VLAN 205 sub-interface (`igb5_vlan205`) on `igb5`,
+   `172.16.74.1/24` per Section 3.4's already-fixed gateway address, per
+   Section 3.5 below.
+6. On the UniFi switch side, the port feeding `igb5` needs to become an
+   802.1Q trunk allowing tags 205, 235, 236, 237, 238, 300, 301, 302, 303,
+   304 (native/untagged VLAN on that port should stay whatever it already
+   is, almost certainly not one of these ten).
 
 **Treat this as a live-production change, not a green-field install.**
 Migrating LAN235-238 off dedicated ports onto a shared trunk touches
@@ -129,7 +135,10 @@ peer (the actual tunnel endpoint/keys) differs per router.
 | 304 | 10.30.4.0/24 | WG_VLAN304 | GW_WG_VLAN304 | NET_VLAN304 |
 
 Management VLAN 205 (172.16.74.0/24) is fixed and shared, already covered by
-Section 3.4; it is not part of the loop below.
+Section 3.4. It rides the same `igb5` trunk as everything below (Section
+3.5) but is not part of the per-VLAN loop in Section 3.1-3.4 - it gets no
+WireGuard tunnel, no gateway, no firewall allow/block pair, since it is the
+admin network, not a PPSK group.
 
 ## 2. Why the GUI, not raw `config.xml`, for creation steps
 
@@ -265,7 +274,7 @@ wins - this order is the entire point of Section 10):
      the AP does, but keep this explicit and minimal rather than absent by
      accident)
    - Allow `NET_VLAN300` -> `10.30.0.1` port `53` (DNS resolver for this
-     VLAN, see 3.5 below - this is intentionally the VLAN's own gateway,
+     VLAN, see 3.6 below - this is intentionally the VLAN's own gateway,
      not a shared resolver, to keep DNS-through-tunnel per-VLAN)
    - Allow `NET_VLAN300` -> `10.30.0.1` port `67/68` (DHCP)
 3. **`ALLOW_VLAN300_TO_GW_WG_VLAN300`** (allow, placed after the block/
@@ -288,7 +297,61 @@ Read it top to bottom and confirm the block rule and its exceptions
 genuinely precede the allow rule, exactly as intended - this is the one
 thing worth re-reading twice.
 
-### 3.5 DNS through the tunnel (Section 11 decision)
+### 3.5 Management VLAN (device management, decided 2026-07-14)
+
+Not a PPSK group - this is CLAUDE.md Section 3.4's existing Management
+VLAN 205, extended to also carry the UniFi switch's, Cloud Key's, and APs'
+own device-management traffic, not just the Zonclave server. This matches
+the original Section 3.4 topology diagram (`VLAN 205 + VLAN 300-399` on
+one trunk, Cloud Key marked "(management)"); it just hadn't been built
+yet. Do this once per router, not per VLAN.
+
+**Interfaces > Other Types > VLAN > Add:** parent `igb5`, tag `205`,
+description `MGMT_VLAN205` (Section 6's fixed name for this interface).
+
+**Interfaces > Assignments:** assign it, name it `MGMT_VLAN205`, static
+IPv4 `172.16.74.1/24` (the gateway CLAUDE.md Section 3.4 already fixed).
+DHCP range `172.16.74.20`-`172.16.74.50` per Section 3.4 (the Beelink
+server itself keeps its static `172.16.74.10`, outside the DHCP range).
+
+No WireGuard tunnel, no `GW_WG_VLAN205` gateway, and no per-VLAN firewall
+pair here - this network's whole purpose is admin access, and Section 3.4
+already covers how it's reached (the WireGuard admin tunnel to ZILL's
+machine). Do still confirm it cannot reach the PPSK VLANs' client devices
+or vice versa when you run the Section 10 isolation test (test 8, Section
+21.1) - management should be one-way reachable (admin -> devices), not
+open to every VLAN indiscriminately.
+
+**On the UniFi switch side**, per AP-facing port: set **Native/Untagged
+VLAN = 205**, with VLANs 300-304 allowed (tagged) on the same port for the
+PPSK SSID. This is deliberate, not incidental - by default a UniFi AP's
+own management traffic follows whatever VLAN is untagged/native on its
+switch port. Some Network app versions also expose a way to declare a
+management VLAN explicitly (a per-network "device management" toggle,
+with the AP port's native VLAN then set to none) - if that option is
+present in 10.4.57 and preferred, it's a valid alternative, but the
+native-VLAN approach above needs no version-specific feature and is the
+safer default to document here. Either way, this does not conflict with
+Ubiquiti's own warning that an AP's native VLAN must never match a VLAN
+it broadcasts - the PPSK SSID broadcasts/assigns 300-304 dynamically via
+RADIUS, never 205.
+
+Also set the UniFi switch's own device-management VLAN to 205 (device-level
+setting, distinct from per-port config - exact menu path shifts across
+Network app versions per Section 8.3's caution, look for "Management
+VLAN" or a "Network Override" under the switch device's own settings).
+The Beelink server's own switch port should likewise have native VLAN 205
+(it is not itself a UniFi device, so this is a plain access-port setting,
+not the AP-specific mechanism above).
+
+Verify from OPNsense:
+
+```sh
+ifconfig | grep -A3 vlan205
+ping -c3 172.16.74.20   # once something is actually on 205
+```
+
+### 3.6 DNS through the tunnel (Section 11 decision)
 
 Section 11 records DNS-through-tunnel as the decision, not central Unbound.
 Point each VLAN's DHCP-issued DNS server at that VLAN's own gateway
@@ -310,7 +373,7 @@ DNS-through-tunnel config still resolves names successfully (via WAN
 fallback) with no visible error. Section 21.1 test 9 (DNS leak test) is
 what actually catches this - don't skip it.
 
-### 3.6 Kill-switch confirmation (Section 12)
+### 3.7 Kill-switch confirmation (Section 12)
 
 Before moving to the next VLAN, confirm fail-closed behavior for this one
 right now, not at the end:
@@ -333,10 +396,12 @@ fallback rule exists somewhere above it. Fix this before provisioning any
 PPSK against this VLAN - this is the one failure mode the whole
 architecture exists to prevent.
 
-### 3.7 Repeat
+### 3.8 Repeat
 
-Do 3.1 through 3.6 for VLANs 301, 302, 303, 304 on this router, then repeat
-the entire Section 3 for the next location.
+Do 3.1 through 3.4 and 3.6-3.7 for VLANs 301, 302, 303, 304 on this router
+(3.5, the management VLAN, is a once-per-router step, already done above -
+don't repeat it per VLAN), then repeat the entire Section 3 for the next
+location.
 
 ## 4. UniFi configuration (Section 8.3)
 
@@ -383,12 +448,17 @@ versions. The essentials, regardless of label:
 
 ### 4.3 Trunk port
 
-Confirm the switch port trunking from the USW to OPNsense passes every
-PPSK VLAN tagged, plus the management VLAN:
+Confirm the switch port trunking to `igb5` (Section 0's confirmed trunk
+port) passes all ten tags: the five PPSK VLANs, the four migrated existing
+VLANs, and management:
 
-**UniFi Network > switch port profile for the OPNsense-facing port:**
-tagged VLANs `205, 300, 301, 302, 303, 304` (native/untagged VLAN per your
-existing convention, unrelated to this project's VLANs).
+**UniFi Network > switch port profile for the `igb5`-facing port:** tagged
+VLANs `205, 235, 236, 237, 238, 300, 301, 302, 303, 304` (native/untagged
+VLAN per your existing convention, unrelated to this project's VLANs).
+
+This is the switch-to-router uplink, not the AP-facing ports - those are
+covered separately in Section 3.5 above (native VLAN 205, tagged 300-304
+only, not all ten - APs don't need to see 235-238's traffic).
 
 Verify from the OPNsense side once traffic starts flowing:
 
@@ -410,9 +480,9 @@ directly - but here is where each one lands against what you just built:
 | 1-2 | Panel (Section 16.3) create + this doc's Section 3 (VLAN assignment) |
 | 3-4 | This doc's Section 3.2/3.3 (tunnel identity, egress IP) |
 | 5-6 | Panel disable/delete (already covered by `PpskServiceTest`) |
-| 7 | This doc's Section 3.6 (kill-switch) |
-| 8 | This doc's Section 3.4 (block rule against RFC1918 and management) |
-| 9 | This doc's Section 3.5 (DNS-through-tunnel) |
+| 7 | This doc's Section 3.7 (kill-switch) |
+| 8 | This doc's Section 3.4 and 3.5 (block rule against RFC1918/management, and the management VLAN's own isolation) |
+| 9 | This doc's Section 3.6 (DNS-through-tunnel) |
 | 10 | Panel's Admin Log page - confirm every action from tests 1-6 has a row |
 
 Only sign a site off once all 10 pass on real hardware. A green panel test

@@ -92,6 +92,8 @@ The Beelink server sits behind OPNsense with no public IP. Access is via a dedic
 
 Remote access for ZILL: WireGuard admin tunnel on OPNsense peering to ZILL's machine. This gives SSH access to 172.16.74.10 (Zonclave server) and web UI access to OPNsense and UniFi controller from anywhere, without any public port-forwarding.
 
+**Decision recorded 2026-07-14:** VLAN 205 also serves as the device-management VLAN for the UniFi switch, Cloud Key, and access points at each site, not only the Zonclave server. This was already implied by the topology below (one trunk carrying 205 alongside the PPSK VLANs, Cloud Key marked "management") and by the DHCP range above being sized for "other management devices"; it is now explicit. Implementation: AP-facing switch ports use native/untagged VLAN 205 (UniFi APs have no separate per-device management VLAN field independent of port tagging), with the PPSK VLANs allowed as tagged traffic on the same ports. See `docs/runbook/phase1-opnsense-unifi.md` Section 3.5 for the per-site implementation steps.
+
 Topology at each location:
 
 ```text

@@ -30,6 +30,8 @@ Each VLAN is fail-closed: if its WireGuard tunnel drops, traffic is dropped, nev
 | `db/` | Reference SQL schema and seed scripts for dev/test databases |
 | `docs/adr/` | Architecture decision records |
 | `docs/runbook/` | Manual OPNsense + UniFi configuration steps (Section 22: not installer-automated in Phase 1) |
+| [`docs/installation-guide.md`](docs/installation-guide.md) | Full start-to-finish manual: setup, install, network config, day-to-day use |
+| [`docs/commands-reference.md`](docs/commands-reference.md) | Every command in this project, no explanation - a cheat sheet |
 
 ## Key design points
 

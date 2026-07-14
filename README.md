@@ -166,6 +166,23 @@ sudo bash installer/install.sh
 sudo bash installer/install.sh --config installer.conf
 ```
 
+### Encrypted delivery (Section 24.5)
+
+For handing the installer to a client (or running it yourself over SSH) as a single opaque command, `installer/package.sh` builds an AES-256 encrypted payload plus a tiny decrypt-and-run stub from the current git `HEAD` (not the working tree, so uncommitted edits can't ship by accident):
+
+```sh
+bash installer/package.sh --passphrase '<choose one>'
+# outputs installer/dist/zonclave-installer.enc and installer/dist/run.sh
+```
+
+Deliver both output files together; deliver the passphrase separately, over a different channel, never alongside the files. The recipient (or you, over SSH) runs:
+
+```sh
+sudo bash run.sh
+```
+
+**Honest limitation:** this is tamper-friction and casual protection of the install method, not a secrecy guarantee - anyone with root on the target can recover the decrypted installer at runtime regardless. See CLAUDE.md Section 24.5.
+
 **Honest boundary (Section 24.2):** the installer configures that one host only. OPNsense (VLANs, WireGuard tunnels, gateways, firewall rules) and UniFi (SSID, RADIUS profile) are separate appliances and remain a documented manual runbook in Phase 1: see [docs/runbook/phase1-opnsense-unifi.md](docs/runbook/phase1-opnsense-unifi.md). Do not describe the installer as setting up the full end-to-end chain.
 
 ## Git workflow

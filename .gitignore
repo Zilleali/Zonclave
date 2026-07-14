@@ -9,4 +9,5 @@ installer/installer.conf
 **/install-summary.txt
 *.enc
 *.run
+installer/dist/
 #CLAUDE.md

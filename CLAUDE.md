@@ -3,10 +3,10 @@
 **Product name:** Zonclave (a Developer Zon product)
 **System:** PPSK / VLAN / WireGuard Multi-Tunnel System
 **Repository:** github.com/zilleali/Zonclave
-**Status:** Planning / Phase 1 Scoping
+**Status:** Phase 1 - In Progress (dev environment active)
 **Client:** Sancover
 **Developer & Network Engineer:** ZILL E ALI (Developer Zon)
-**Last updated:** 2026-07-13
+**Last updated:** 2026-07-16
 
 This file is the single source of truth for the project. Anyone picking up implementation work, human or AI-assisted, should read it in full before writing any config or code. Section numbers are stable. Do not renumber sections 1 to 22, since the kickoff prompt references them directly. Add new material as new trailing sections.
 
@@ -73,10 +73,35 @@ Note: client has 4 x Protectli FW6E units total. The 4th is a spare or future lo
 
 | Component | Item | Notes |
 | --- | --- | --- |
-| Zonclave server | Beelink SER5 Pro (AMD Ryzen 7 5800H, 16GB RAM, 500GB NVMe) | Hosts FreeRADIUS + PostgreSQL + Zonclave panel |
-| Server OS | Ubuntu Server 24.04 LTS | Fresh install required (decision updated 2026-07-13, was 22.04) |
-| Server network | Flat LAN, static IP 192.168.1.250 | No dedicated management VLAN at Kelder, see Section 3.4 |
+| Zonclave server hardware | Beelink SER5 Pro (AMD Ryzen 7 5800H, 16GB RAM, 466GB NVMe SSD) | Running Windows 11, hosting Zonclave as a Hyper-V VM |
+| Host OS | Windows 11 (SancoverPC-4) | Hyper-V enabled, VM set to auto-start |
+| VM name | Zonclave | Hyper-V VM, Ubuntu, 8.23 GB RAM assigned |
+| VM OS | Ubuntu 22.04 LTS | Confirmed running, internet working via External Switch |
+| VM network | Hyper-V External Switch bound to Realtek PCIe GbE (Ethernet 2, MAC B0-41-6F-13-BD-BA) | Was Internal switch (no network) - fixed 2026-07-16 |
+| Server static IP | 192.168.1.250 | Set in netplan, outside DHCP pool |
 | VPN | Residential WireGuard peer configs from VPN provider | 5 per router, 15 total for Phase 1 |
+| Remote access (ZILL) | RustDesk to Windows host + SSH to Ubuntu VM | Tailscale also available on the Windows host for future use |
+
+**Hyper-V deployment notes (recorded 2026-07-16):**
+
+The Beelink is running Windows 11 as its host OS, not bare metal Ubuntu as originally planned. The Zonclave Ubuntu server runs as a Hyper-V VM. This is a production deployment decision made by the client and is acceptable with the following three Windows host settings locked in:
+
+1. Windows automatic reboot on update: **must be disabled** (a surprise reboot at 3am drops FreeRADIUS and takes down all PPSK authentication at all three locations)
+2. VM auto-start on Windows boot: **must be set to Start** (`AutomaticStartAction = Start`) so the VM comes back after any planned or unplanned Windows reboot
+3. Sleep and hibernate: **must be set to Never** (power plan: High Performance or equivalent)
+
+These were confirmed with Sancover 2026-07-16. Verify they are still in place at any future support session. PowerShell check commands:
+
+```powershell
+# Check VM auto-start
+Get-VM -Name "Zonclave" | Select-Object Name, AutomaticStartAction, AutomaticStartDelay, AutomaticStopAction
+
+# Check sleep settings
+powercfg /query SCHEME_CURRENT SUB_SLEEP
+
+# Check Windows Update reboot policy
+Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" 2>$null
+```
 
 ### 3.4 Management network (server access)
 
@@ -518,9 +543,19 @@ This is only feasible cleanly because of the service-layer separation in Section
 - [x] UniFi Network application version: **10.4.57** confirmed on the Office SancoMedia Kelder Cloud Key Gen2+, well above the 7.5.187 minimum for RADIUS-based PPSK (Section 8.3). Decided 2026-07-14; re-verify per site for the other two locations.
 - [x] WireGuard peer configs for Office SancoMedia Kelder: **5 per router, confirmed ready** by Sancover 2026-07-14. Sancover's stated goal is to add more groups later; Phase 1 stays scoped to 5 per router regardless (see Section 4).
 
+- [x] Server deployment model: **Hyper-V VM on Windows 11** (Beelink SER5 Pro). Confirmed 2026-07-16. Not bare metal as originally planned. Windows host hardening (no auto-reboot, VM auto-start, no sleep) confirmed with Sancover same day.
+- [x] VM OS: **Ubuntu 22.04 LTS** (confirmed running, not 24.04 as noted in earlier planning). The installer OS target in Section 24.4 was a planning note; the actual deployed VM is 22.04. PHP 8.3 was added via the ondrej/php PPA.
+- [x] Hyper-V virtual switch: **External Switch** bound to Ethernet 2 (Realtek PCIe GbE, MAC B0-41-6F-13-BD-BA). Fixed 2026-07-16, was Internal switch with no network access.
+- [x] Dev environment: **panel deployed at /var/www/Zonclave/panel on the Zonclave VM**, Nginx configured, accessible at `http://192.168.1.250/admin`. SQLite currently active for dev (must switch to PostgreSQL before any RADIUS or ppsk_groups work begins, see Section 26).
+- [x] Host machine compatibility: **any hypervisor-capable machine works** (Windows, Linux, or Mac), since the installer only ever targets the Ubuntu 24.04 guest, never the host. No installer rewrite needed. Confirmed 2026-07-16, see Section 24.4.
+
 **Still open (resolve before or during first session):**
 
+- [ ] Switch panel database from SQLite to PostgreSQL (Section 26, next immediate step)
+- [ ] Install and configure FreeRADIUS on the Zonclave VM (Section 8)
+- [ ] Create Filament admin user
 - [ ] Confirm the 5 WireGuard peer configs per router are ready for Location 2 and Location 3 (10 more, 15 total) before OPNsense config begins there
+- [ ] Install Tailscale on the Ubuntu VM for persistent remote SSH access (optional but recommended given the Hyper-V setup)
 
 ## 21. Acceptance Testing (Phase 1)
 
@@ -622,6 +657,8 @@ The installer configures one host. It does **not** configure OPNsense (VLAN inte
 - Minimal input: prompt only for the essentials (UniFi/AP subnet, admin email) or read a small answers file; generate sane defaults for the rest.
 - A `self_check` stage at the end verifies the FreeRADIUS config test passes, services are active, and the panel responds, before printing success.
 
+**Host machine compatibility (decision recorded 2026-07-16):** the installer above only ever targets the guest OS, Ubuntu Server 24.04 LTS - it has no opinion about what physical or virtual host that guest runs on. This is what makes Zonclave deployable on any client's existing hardware without a rewrite: the host can be Windows (Hyper-V, VirtualBox, VMware Workstation), Linux (KVM/libvirt, VirtualBox), or macOS (VMware Fusion, Parallels, UTM) with Ubuntu running as a VM, or bare-metal Ubuntu directly. The Kelder deployment (Section 3.3, Section 26) runs Windows 11 + Hyper-V because that is the hardware the client already had; a future client with a bare-metal Linux box or a Mac would run the exact same `install.sh` unchanged, either inside a VM or directly. Do not write host-OS-specific branches into the installer to chase broader compatibility - the VM boundary already solves it for free, and adding OS branches to the script itself is exactly the one-click reliability risk the single-OS pin above exists to avoid.
+
 ### 24.5 Encryption and delivery (with the honest limitation)
 
 The intent is to hand the client one opaque command and to protect the method as a deliverable. Two workable approaches:
@@ -670,3 +707,78 @@ For any AI assistant (Claude Code or otherwise) working in this repo.
 - List any command to run (migrations, config test, service restart, tests).
 - If a change has a network-side implication (new VLAN, tunnel, or rule), note the matching OPNsense, FreeRADIUS, or UniFi step. Do not assume the infrastructure side is done because the code compiles.
 - Commit incrementally with messages tied to section numbers.
+
+## 26. Dev Environment State (recorded 2026-07-16)
+
+Current state of the Zonclave VM as of this date. Update this section whenever the environment changes significantly.
+
+### 26.1 Server
+
+| Item | Value |
+| --- | --- |
+| Host machine | Beelink SER5 Pro (SancoverPC-4), Windows 11 |
+| VM name | Zonclave |
+| VM OS | Ubuntu 22.04 LTS |
+| VM IP | 192.168.1.250 (static, netplan) |
+| VM RAM assigned | 8.23 GB |
+| Hyper-V switch | External Switch (bound to Ethernet 2, Realtek PCIe GbE) |
+| Panel URL | `http://192.168.1.250/admin` |
+| Remote access | RustDesk to Windows host, then SSH to 192.168.1.250 |
+
+### 26.2 Installed software (on the Ubuntu VM)
+
+| Software | Version | Status |
+| --- | --- | --- |
+| PHP | 8.3.6 (via ondrej/php PPA) | Running |
+| Nginx | Default Ubuntu package | Running, configured for Zonclave |
+| PostgreSQL | Installed | Running, not yet wired to the panel |
+| FreeRADIUS | Not yet installed | Next step after DB switch |
+| Composer | 2.x | Installed at /usr/local/bin/composer |
+
+### 26.3 Panel deployment
+
+| Item | Value |
+| --- | --- |
+| Code location | /var/www/Zonclave/panel |
+| Nginx site | /etc/nginx/sites-available/zonclave (symlinked to sites-enabled) |
+| Nginx document root | /var/www/Zonclave/panel/public |
+| PHP-FPM socket | /run/php/php8.3-fpm.sock |
+| Ownership | zille:www-data (app files), www-data:www-data (storage + bootstrap/cache) |
+| Storage permissions | 775 (storage/, bootstrap/cache/) |
+| Git repo root | /var/www/Zonclave |
+| .git ownership | zille:zille (do not chown to www-data - breaks git pull) |
+
+### 26.4 Critical permission rules (learned from incidents 2026-07-16)
+
+- **Never run `chown -R` from /var/www/Zonclave (the repo root).** Always run from /var/www/Zonclave/panel. Running from the repo root changes .git ownership to www-data and breaks `git pull` with "Permission denied on .git/FETCH_HEAD".
+- **storage/framework/views must be writable by www-data.** If Blade falls back to system tmp, Laravel raises a fatal ErrorException. Fix: `sudo chown -R www-data:www-data /var/www/Zonclave/panel/storage/framework`
+- **database/ directory and database.sqlite must be writable by www-data** when using SQLite. Fix: `sudo chown www-data:www-data /var/www/Zonclave/panel/database /var/www/Zonclave/panel/database/database.sqlite`
+
+### 26.5 Immediate next steps (in order)
+
+1. **Switch database from SQLite to PostgreSQL.** The panel is currently running on SQLite (default Laravel dev config). All RADIUS projection work, ppsk_groups, and the RADIUS write boundary (Section 23) depend on PostgreSQL. Do not build any RADIUS or ppsk_groups features against SQLite.
+
+   ```bash
+   # Check current DB config
+   grep DB_ /var/www/Zonclave/panel/.env
+   ```
+
+2. **Run migrations against PostgreSQL.** After updating .env, run `php artisan migrate:fresh` to rebuild schema on PostgreSQL.
+
+3. **Create Filament admin user.**
+
+   ```bash
+   cd /var/www/Zonclave/panel
+   php artisan make:filament-user
+   ```
+
+4. **Confirm panel loads at `http://192.168.1.250/admin`** with the new admin credentials.
+
+5. **Install FreeRADIUS** per Section 8 on the Zonclave VM.
+
+6. **(Optional but recommended) Install Tailscale on the Ubuntu VM** so ZILL has persistent SSH access without depending on RustDesk to the Windows host first. The Windows host already has Tailscale installed.
+
+   ```bash
+   curl -fsSL https://tailscale.com/install.sh | sh
+   sudo tailscale up
+   ```

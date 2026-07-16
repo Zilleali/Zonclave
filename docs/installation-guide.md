@@ -33,7 +33,7 @@ FreeRADIUS only ever does authentication and VLAN assignment. OPNsense only ever
 ## 3. Prerequisites
 
 - **For panel development**: PHP 8.2+ (with `mbstring`, `xml`, `curl`, `zip`, `intl`, `sqlite3`/`pdo_sqlite`), Composer 2. Works on Windows or Linux.
-- **For production installation**: a dedicated Ubuntu Server 24.04 LTS host (the installer refuses to run on anything else). Root access.
+- **For production installation**: Ubuntu Server 24.04 LTS (the installer refuses to run on anything else) - bare metal, or as a VM under any hypervisor (Hyper-V, VMware, VirtualBox, KVM, and so on), so the host machine itself can be Windows, Linux, or macOS. Root access on the Ubuntu guest.
 - **For the network side**: an OPNsense router (Protectli FW6E in this project) and a UniFi controller/AP deployment, both already physically installed.
 
 ## 4. Setting up the panel for development

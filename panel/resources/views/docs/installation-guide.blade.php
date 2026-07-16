@@ -39,7 +39,7 @@
                 <h2>Prerequisites</h2>
                 <ul>
                     <li><strong>For panel development</strong>: PHP 8.2+ (with <code>mbstring</code>, <code>xml</code>, <code>curl</code>, <code>zip</code>, <code>intl</code>, <code>sqlite3</code>/<code>pdo_sqlite</code>), Composer 2. Works on Windows or Linux.</li>
-                    <li><strong>For production installation</strong>: a dedicated Ubuntu Server 24.04 LTS host. Root access.</li>
+                    <li><strong>For production installation</strong>: Ubuntu Server 24.04 LTS - bare metal, or as a VM under any hypervisor (Hyper-V, VMware, VirtualBox, and so on), so the host machine itself can be Windows, Linux, or macOS. Root access on the Ubuntu guest.</li>
                     <li><strong>For the network side</strong>: a compatible router and a Wi-Fi controller/AP deployment, both already physically installed.</li>
                 </ul>
             </section>

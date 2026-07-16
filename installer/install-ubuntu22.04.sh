@@ -210,7 +210,12 @@ install_db() {
     | grep -q 1 || sudo -u postgres createdb -O "${DB_USER}" "${DB_NAME}" >>"$LOG_FILE" 2>&1
 
   if [ -f "$FR_SQL_SCHEMA" ]; then
-    sudo -u postgres psql -d "${DB_NAME}" -f "$FR_SQL_SCHEMA" >>"$LOG_FILE" 2>&1 || true
+    # Root (this script) opens the file via redirection and streams it to
+    # psql's stdin, rather than passing -f and letting the postgres OS user
+    # try to open it directly - the postgres user has no read permission on
+    # FreeRADIUS's config files, so -f fails with "Permission denied" there.
+    sudo -u postgres psql -d "${DB_NAME}" >>"$LOG_FILE" 2>&1 < "$FR_SQL_SCHEMA" \
+      || die "Failed to load the FreeRADIUS SQL schema from ${FR_SQL_SCHEMA}. See ${LOG_FILE}."
     sudo -u postgres psql -d "${DB_NAME}" -c \
       "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${DB_USER};
        GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${DB_USER};" >>"$LOG_FILE" 2>&1

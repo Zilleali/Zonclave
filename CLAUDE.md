@@ -115,8 +115,9 @@ Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" 2>
 | Windows host static IP | 192.168.1.174 (final, confirmed 2026-07-16) |
 | Zonclave VM static IP | 192.168.1.175 (final, confirmed 2026-07-16 - originally planned as 192.168.1.250, updated once the actual Hyper-V deployment was assigned real addresses) |
 | Switch (USW-16-PoE) | 192.168.1.12 (existing) |
+| UniFi Controller (Cloud Key Gen2+) | 192.168.1.191 (confirmed 2026-07-16) |
 
-**DHCP pool overlap (flagged 2026-07-16, not yet resolved):** both 192.168.1.174 and 192.168.1.175 fall inside the existing DHCP pool (192.168.1.10-192.168.1.245), unlike the originally planned 192.168.1.250 which was deliberately chosen to sit outside it. Until static mappings are added in OPNsense's Services > DHCPv4 > [LAN] for both addresses (keyed to their MAC addresses), there is a real risk OPNsense hands one of them to an unrelated device later, causing an IP conflict. Add those two static mappings before considering this settled.
+**DHCP pool overlap (flagged 2026-07-16, resolved same day):** 192.168.1.174, 192.168.1.175, and 192.168.1.191 all fall inside the existing DHCP pool (192.168.1.10-192.168.1.245), unlike the originally planned 192.168.1.250 which was deliberately chosen to sit outside it. Static mappings were added in OPNsense's Services > DHCPv4 > [LAN] for all three addresses (keyed to MAC address), closing the collision risk.
 
 Remote access for ZILL: WireGuard admin tunnel on OPNsense peering to ZILL's machine, giving SSH access to the Zonclave server and web UI access to OPNsense and the UniFi controller from anywhere, without public port-forwarding.
 
@@ -129,7 +130,7 @@ Protectli FW6E (OPNsense) - LAN 192.168.1.0/24 (flat, untagged)
     |  (trunk: VLAN 300-304 tagged + existing VLANs; management traffic untagged)
 UniFi USW-16-PoE (192.168.1.12)
     |
-    ├── Cloud Key Gen2+ (management, flat LAN)
+    ├── Cloud Key Gen2+ (management, 192.168.1.191)
     ├── U6+ AP x5 (broadcasts PPSK SSID)
     └── Zonclave server (192.168.1.175, Hyper-V VM on host 192.168.1.174)
          - FreeRADIUS :1812/1813
@@ -553,11 +554,11 @@ This is only feasible cleanly because of the service-layer separation in Section
 - [x] Dev environment superseded by production: `install-ubuntu22.04.sh` now deploys the real panel to `/opt/zonclave` on PostgreSQL (the earlier `/var/www/Zonclave/panel` SQLite dev copy is separate and not the production path). Panel confirmed reachable and admin login working at `http://192.168.1.175/admin` (2026-07-16).
 - [x] Host machine compatibility: **any hypervisor-capable machine works** (Windows, Linux, or Mac), since the installer only ever targets the Ubuntu 22.04 guest, never the host. No installer rewrite needed. Confirmed 2026-07-16, see Section 24.4.
 - [x] Installer bugs found running against the real Kelder VM, all fixed 2026-07-16: (1) `install_db()` used `psql -f` to load the FreeRADIUS schema as the `postgres` OS user, which cannot read FreeRADIUS's config files - switched to shell redirection so root reads the file instead; (2) `self_check()`'s RADIUS smoke test used the wrong client secret against 127.0.0.1 (RADIUS_SECRET belongs to the AP-subnet client, not the default `localhost` client) - now reads the actual `localhost` client secret from `clients.conf`; (3) `deploy_panel()` used substitute-only `sed` for `.env`'s `DB_HOST`/`DB_PORT`/`DB_DATABASE`/`DB_USERNAME`/`DB_PASSWORD`, which silently did nothing since `.env.example` doesn't ship those keys - replaced with a set-or-append `set_env` helper. FreeRADIUS confirmed returning `Access-Accept` with the correct VLAN, and the panel confirmed loading with real PostgreSQL data.
-- [x] Static IPs finalized 2026-07-16: Windows host 192.168.1.174, Zonclave VM 192.168.1.175 (both superseding the originally planned 192.168.1.250 - see Section 3.4).
+- [x] Static IPs finalized 2026-07-16: Windows host 192.168.1.174, Zonclave VM 192.168.1.175, UniFi Controller 192.168.1.191 (superseding the originally planned 192.168.1.250 for the server - see Section 3.4).
+- [x] DHCP static mappings added in OPNsense 2026-07-16 for .174, .175, and .191 (Section 3.4) - closes the collision risk those addresses had sitting unreserved inside the existing DHCP pool.
 
 **Still open:**
 
-- [ ] Add static DHCP mappings in OPNsense for 192.168.1.174 and 192.168.1.175 (Section 3.4) - both currently sit inside the existing DHCP pool with no reservation, a real collision risk
 - [ ] Confirm the 5 WireGuard peer configs per router are ready for Location 2 and Location 3 (10 more, 15 total) before OPNsense config begins there
 - [ ] Install Tailscale on the Ubuntu VM for persistent remote SSH access (optional but recommended given the Hyper-V setup)
 - [ ] OPNsense manual config at Kelder: VLANs 300-304, WireGuard tunnels, gateways, firewall allow/block rules (Sections 9-12; see `docs/opnsense-configuration.md` and `docs/runbook/phase1-opnsense-unifi.md`)
@@ -778,16 +779,17 @@ Panel and FreeRADIUS are both confirmed working end to end as of this date: admi
 
 ### 26.6 Next steps (in order)
 
-1. **Add static DHCP mappings in OPNsense** for 192.168.1.174 and 192.168.1.175 (Services > DHCPv4 > [LAN], keyed to MAC address) - both are inside the existing pool with no reservation yet.
-2. **(Optional but recommended) Install Tailscale on the Ubuntu VM** so ZILL has persistent SSH access without depending on RustDesk to the Windows host first. The Windows host already has Tailscale installed.
+Static DHCP mappings for .174, .175, and .191 are done (Section 3.4, Section 20).
+
+1. **(Optional but recommended) Install Tailscale on the Ubuntu VM** so ZILL has persistent SSH access without depending on RustDesk to the Windows host first. The Windows host already has Tailscale installed.
 
    ```bash
    curl -fsSL https://tailscale.com/install.sh | sh
    sudo tailscale up
    ```
 
-3. **OPNsense manual config**: VLANs 300-304, WireGuard tunnels, gateways, and the allow/block firewall rule pairs (Sections 9-12). See `docs/opnsense-configuration.md` for the general pattern and `docs/runbook/phase1-opnsense-unifi.md` for the Kelder-specific steps.
-4. **UniFi**: point the SSID's RADIUS profile at 192.168.1.175 with the shared secret from the install summary (`/etc/ppsk-installer/install-summary.txt` on the VM), and confirm RADIUS-based Private PSK support on the installed Network application version (Section 8.3).
-5. **Create at least one real PPSK through the panel itself** (not just the installer's seeded test rows) and `radtest` it, to confirm the full software-layer chain - panel to `ppsk_groups` to `PpskService::projectToRadius()` to `radcheck`/`radreply` - works end to end on this production database, not only the pre-seeded data.
-6. **Full Section 21 acceptance test pass**, once the network side above is in place: real device connects, correct VLAN, correct egress IP, disable/delete revoke access, kill-switch fails closed, VLAN isolation holds, DNS leak test passes, every action lands in `admin_log`.
-7. **Replicate to Location 2 and Location 3** once Kelder passes acceptance testing, after confirming their WireGuard peer configs are ready (Section 20).
+2. **OPNsense manual config**: VLANs 300-304, WireGuard tunnels, gateways, and the allow/block firewall rule pairs (Sections 9-12). See `docs/opnsense-configuration.md` for the general pattern and `docs/runbook/phase1-opnsense-unifi.md` for the Kelder-specific steps.
+3. **UniFi**: point the SSID's RADIUS profile at 192.168.1.175 with the shared secret from the install summary (`/etc/ppsk-installer/install-summary.txt` on the VM), and confirm RADIUS-based Private PSK support on the installed Network application version (Section 8.3).
+4. **Create at least one real PPSK through the panel itself** (not just the installer's seeded test rows) and `radtest` it, to confirm the full software-layer chain - panel to `ppsk_groups` to `PpskService::projectToRadius()` to `radcheck`/`radreply` - works end to end on this production database, not only the pre-seeded data.
+5. **Full Section 21 acceptance test pass**, once the network side above is in place: real device connects, correct VLAN, correct egress IP, disable/delete revoke access, kill-switch fails closed, VLAN isolation holds, DNS leak test passes, every action lands in `admin_log`.
+6. **Replicate to Location 2 and Location 3** once Kelder passes acceptance testing, after confirming their WireGuard peer configs are ready (Section 20).

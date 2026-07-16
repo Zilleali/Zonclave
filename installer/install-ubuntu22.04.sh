@@ -491,7 +491,18 @@ self_check() {
   systemctl is-active --quiet freeradius && ok "FreeRADIUS active" || { warn "FreeRADIUS not active"; fails=$((fails+1)); }
 
   if command -v radtest >/dev/null 2>&1; then
-    if radtest ppsk_group001 "${SEED_PSK_1}" 127.0.0.1 0 "${RADIUS_SECRET}" 2>>"$LOG_FILE" | grep -q "Access-Accept"; then
+    # Test against the "localhost" client's own secret, not RADIUS_SECRET -
+    # that secret belongs to the ppsk_unifi client, scoped to the AP subnet
+    # (RADIUS_CLIENT_SUBNET), which 127.0.0.1 does not match. Using the
+    # wrong secret here doesn't get an Access-Reject, it gets total
+    # silence (RFC 2865: a server never replies to an unrecognized secret),
+    # which reads as "FreeRADIUS is broken" when it isn't.
+    local localhost_secret
+    localhost_secret="$(sed -n '/^client localhost {/,/^}/{/secret/p}' "${FR_DIR}/clients.conf" \
+      | head -1 | sed -E 's/.*secret[[:space:]]*=[[:space:]]*"?([^"[:space:]]+)"?.*/\1/')"
+    localhost_secret="${localhost_secret:-$RADIUS_SECRET}"
+
+    if radtest ppsk_group001 "${SEED_PSK_1}" 127.0.0.1 0 "${localhost_secret}" 2>>"$LOG_FILE" | grep -q "Access-Accept"; then
       ok "RADIUS auth smoke test passed (ppsk_group001 -> Access-Accept)."
     else
       warn "RADIUS auth smoke test did not return Access-Accept. Review ${LOG_FILE}."

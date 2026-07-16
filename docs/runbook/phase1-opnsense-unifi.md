@@ -42,10 +42,15 @@ to configure, not assumed:
       3.2. Provisioning a tunnel with a placeholder peer and forgetting to
       swap it in is the most likely way to accidentally leak traffic out
       the wrong path.
-- [ ] The FreeRADIUS node (Beelink, Section 3.4) is already up, reachable at
-      `172.16.74.10:1812/1813`, and `radtest` against a seeded PPSK returns
-      `Access-Accept` locally on that host. Don't start wiring UniFi to a
-      RADIUS server that isn't answering yet.
+- [x] **Confirmed 2026-07-16:** the FreeRADIUS node (the Zonclave Hyper-V VM,
+      Section 3.4) is up and reachable at `192.168.1.175:1812/1813` - not
+      `172.16.74.10`. The VLAN 205 management network this runbook's
+      Section 3.5 originally described was superseded by a flat-LAN
+      decision the same day (CLAUDE.md Section 3.4); see the note at the
+      top of Section 3.5 below before building anything from that section.
+      `radtest` against the seeded `ppsk_group001` returns `Access-Accept`
+      with `Tunnel-Private-Group-Id = "300"`, confirmed locally on that
+      host.
 
 ### A note on interface names
 
@@ -78,11 +83,15 @@ LAN-facing trunk); the existing box just wasn't wired that way yet.
 **Resolved 2026-07-14 (Sancover): trunk port is `igb5`.** `igb1` (LAN)
 stays untagged, unchanged - it is not part of this migration. `igb5`
 (currently the plain, untagged LAN238 leg) becomes the trunk, carrying
-**ten** tagged VLANs: the four existing ones (235, 236, 237, 238), the
-five new PPSK ones (300-304), and management VLAN 205 (Section 3.4 -
-decided 2026-07-14 to also carry AP/switch/router device management, not
-just the Zonclave server; see Section 3.5 below). Concretely, on the
-OPNsense side this means:
+**nine** tagged VLANs: the four existing ones (235, 236, 237, 238) and the
+five new PPSK ones (300-304). **Updated 2026-07-16:** management VLAN 205
+is deliberately not part of this trunk - CLAUDE.md Section 3.4 superseded
+the dedicated management VLAN plan the same day this was originally
+written, in favor of the existing flat LAN. Device management traffic
+(Zonclave server, switch, Cloud Key, APs) rides untagged/native on `igb5`,
+same as it already does today; only 235-304 need explicit tags. See the
+note at the top of Section 3.5 below - do not build a VLAN 205
+sub-interface. Concretely, on the OPNsense side this means:
 
 1. Remove the flat `igb5` assignment currently backing LAN238.
 2. Create tagged VLAN sub-interfaces on `igb5` for 235, 236, 237, and 238
@@ -97,13 +106,10 @@ OPNsense side this means:
    Sancover wants them for something else.
 4. Create the five new tagged VLAN 300-304 sub-interfaces on `igb5`
    alongside the migrated ones, per Section 3.1 below.
-5. Create a tagged VLAN 205 sub-interface (`igb5_vlan205`) on `igb5`,
-   `172.16.74.1/24` per Section 3.4's already-fixed gateway address, per
-   Section 3.5 below.
-6. On the UniFi switch side, the port feeding `igb5` needs to become an
-   802.1Q trunk allowing tags 205, 235, 236, 237, 238, 300, 301, 302, 303,
-   304 (native/untagged VLAN on that port should stay whatever it already
-   is, almost certainly not one of these ten).
+5. On the UniFi switch side, the port feeding `igb5` needs to become an
+   802.1Q trunk allowing tags 235, 236, 237, 238, 300, 301, 302, 303, 304
+   (native/untagged VLAN on that port stays whatever it already is - the
+   flat LAN, 192.168.1.0/24 - carrying management traffic untagged).
 
 **Treat this as a live-production change, not a green-field install.**
 Migrating LAN235-238 off dedicated ports onto a shared trunk touches
@@ -140,11 +146,13 @@ peer (the actual tunnel endpoint/keys) differs per router.
 | 303 | 10.30.3.0/24 | WG_VLAN303 | GW_WG_VLAN303 | NET_VLAN303 |
 | 304 | 10.30.4.0/24 | WG_VLAN304 | GW_WG_VLAN304 | NET_VLAN304 |
 
-Management VLAN 205 (172.16.74.0/24) is fixed and shared, already covered by
-Section 3.4. It rides the same `igb5` trunk as everything below (Section
-3.5) but is not part of the per-VLAN loop in Section 3.1-3.4 - it gets no
-WireGuard tunnel, no gateway, no firewall allow/block pair, since it is the
-admin network, not a PPSK group.
+**Updated 2026-07-16:** there is no dedicated management VLAN at Kelder.
+CLAUDE.md Section 3.4 superseded the VLAN 205 plan the same day this
+runbook was originally written - management traffic (the Zonclave server,
+switch, Cloud Key, APs) rides the existing flat LAN (192.168.1.0/24)
+untagged, not a dedicated tag. Section 3.5 below is kept for history only;
+do not build it. VLAN 205 (172.16.74.0/24) remains reserved and unused,
+per CLAUDE.md Section 5, should a future site want the extra isolation.
 
 ## 2. Why the GUI, not raw `config.xml`, for creation steps
 
@@ -275,7 +283,7 @@ wins - this order is the entire point of Section 10):
    VLAN), action Block, log enabled.
 2. Exceptions **above** rule 1 (evaluated first, so they must sit higher in
    the list), each scoped to the specific server IP, not "any":
-   - Allow `NET_VLAN300` -> `172.16.74.10` port `1812/1813` (RADIUS, if this
+   - Allow `NET_VLAN300` -> `192.168.1.175` port `1812/1813` (RADIUS, if this
      VLAN's clients ever need to reach it directly - normally they don't,
      the AP does, but keep this explicit and minimal rather than absent by
      accident)
@@ -303,63 +311,51 @@ Read it top to bottom and confirm the block rule and its exceptions
 genuinely precede the allow rule, exactly as intended - this is the one
 thing worth re-reading twice.
 
-### 3.5 Management VLAN (device management, decided 2026-07-14)
+### 3.5 Management VLAN - SUPERSEDED, do not build (kept for history)
 
-Not a PPSK group - this is CLAUDE.md Section 3.4's existing Management
-VLAN 205, extended to also carry the UniFi switch's, Cloud Key's, and APs'
-own device-management traffic, not just the Zonclave server. This matches
-the original Section 3.4 topology diagram (`VLAN 205 + VLAN 300-399` on
-one trunk, Cloud Key marked "(management)"); it just hadn't been built
-yet. Do this once per router, not per VLAN.
+**This entire section is superseded as of 2026-07-16 and should not be
+followed.** It originally described building a dedicated Management VLAN
+205 (172.16.74.0/24) to carry the Zonclave server's and UniFi devices' own
+management traffic. CLAUDE.md Section 3.4 reversed that decision the same
+day this was first written, in favor of keeping everything on the
+existing flat LAN (192.168.1.0/24) - simpler, and the isolation a
+dedicated VLAN would buy doesn't protect against anything in this
+project's actual threat model (the office's own hardware, not PPSK guest
+devices). VLAN 205 remains reserved and unused per CLAUDE.md Section 5,
+should a future site want the extra isolation. The original steps are
+kept below only as a reference for what that would look like.
 
-**Confirmed 2026-07-14 (Sancover):** the `172.16.74.0/24` pool (Section
-3.4's already-fixed subnet) is the one in use for this - no conflict with
-anything else on site, matches what's below exactly.
+What to actually do instead, on the UniFi switch side: **leave AP-facing
+ports' native/untagged VLAN as whatever it already is today** (the flat
+LAN), and add VLANs 300-304 as additional **tagged** VLANs on the same
+ports for the PPSK SSID. No new native VLAN, no switch-level "management
+VLAN" setting change, no new OPNsense interface for this. Confirm during
+the Section 10 isolation test (test 8, Section 21.1) that the flat LAN
+still cannot reach PPSK client devices on 300-304 and vice versa.
 
-**Interfaces > Other Types > VLAN > Add:** parent `igb5`, tag `205`,
-description `MGMT_VLAN205` (Section 6's fixed name for this interface).
-
-**Interfaces > Assignments:** assign it, name it `MGMT_VLAN205`, static
-IPv4 `172.16.74.1/24` (the gateway CLAUDE.md Section 3.4 already fixed).
-DHCP range `172.16.74.20`-`172.16.74.50` per Section 3.4 (the Beelink
-server itself keeps its static `172.16.74.10`, outside the DHCP range).
-
-No WireGuard tunnel, no `GW_WG_VLAN205` gateway, and no per-VLAN firewall
-pair here - this network's whole purpose is admin access, and Section 3.4
-already covers how it's reached (the WireGuard admin tunnel to ZILL's
-machine). Do still confirm it cannot reach the PPSK VLANs' client devices
-or vice versa when you run the Section 10 isolation test (test 8, Section
-21.1) - management should be one-way reachable (admin -> devices), not
-open to every VLAN indiscriminately.
-
-**On the UniFi switch side**, per AP-facing port: set **Native/Untagged
-VLAN = 205**, with VLANs 300-304 allowed (tagged) on the same port for the
-PPSK SSID. This is deliberate, not incidental - by default a UniFi AP's
-own management traffic follows whatever VLAN is untagged/native on its
-switch port. Some Network app versions also expose a way to declare a
-management VLAN explicitly (a per-network "device management" toggle,
-with the AP port's native VLAN then set to none) - if that option is
-present in 10.4.57 and preferred, it's a valid alternative, but the
-native-VLAN approach above needs no version-specific feature and is the
-safer default to document here. Either way, this does not conflict with
-Ubiquiti's own warning that an AP's native VLAN must never match a VLAN
-it broadcasts - the PPSK SSID broadcasts/assigns 300-304 dynamically via
-RADIUS, never 205.
-
-Also set the UniFi switch's own device-management VLAN to 205 (device-level
-setting, distinct from per-port config - exact menu path shifts across
-Network app versions per Section 8.3's caution, look for "Management
-VLAN" or a "Network Override" under the switch device's own settings).
-The Beelink server's own switch port should likewise have native VLAN 205
-(it is not itself a UniFi device, so this is a plain access-port setting,
-not the AP-specific mechanism above).
-
-Verify from OPNsense:
-
-```sh
-ifconfig | grep -A3 vlan205
-ping -c3 172.16.74.20   # once something is actually on 205
-```
+> **Original superseded steps (VLAN 205), not to be built:**
+>
+> Not a PPSK group - this described extending CLAUDE.md Section 3.4's
+> originally-planned Management VLAN 205 to also carry the UniFi switch's,
+> Cloud Key's, and APs' own device-management traffic, not just the
+> Zonclave server.
+>
+> **Interfaces > Other Types > VLAN > Add:** parent `igb5`, tag `205`,
+> description `MGMT_VLAN205` (Section 6's fixed name for this interface).
+>
+> **Interfaces > Assignments:** assign it, name it `MGMT_VLAN205`, static
+> IPv4 `172.16.74.1/24`. DHCP range `172.16.74.20`-`172.16.74.50` (the
+> Beelink server itself would keep its static `172.16.74.10`, outside the
+> DHCP range).
+>
+> No WireGuard tunnel, no `GW_WG_VLAN205` gateway, and no per-VLAN
+> firewall pair - this network's whole purpose would have been admin
+> access via the WireGuard admin tunnel to ZILL's machine.
+>
+> On the UniFi switch side, per AP-facing port: set Native/Untagged VLAN
+> = 205, with VLANs 300-304 allowed (tagged) on the same port. Also set
+> the UniFi switch's own device-management VLAN to 205, and the Beelink
+> server's own switch port to native VLAN 205.
 
 ### 3.6 DNS through the tunnel (Section 11 decision)
 
@@ -428,7 +424,7 @@ version per Section 8.3's own caveat).
 **Settings > Profiles > RADIUS > Create New RADIUS Profile:**
 
 - Name: `Zonclave`
-- Auth Server: `172.16.74.10`, port `1812`, shared secret: the value the
+- Auth Server: `192.168.1.175`, port `1812`, shared secret: the value the
   installer generated and printed in its summary (Section 24.3 step 6) -
   never hand-type a different one.
 - Accounting: leave disabled for Phase 1 (Section 22: RADIUS accounting is
@@ -459,16 +455,18 @@ versions. The essentials, regardless of label:
 ### 4.3 Trunk port
 
 Confirm the switch port trunking to `igb5` (Section 0's confirmed trunk
-port) passes all ten tags: the five PPSK VLANs, the four migrated existing
-VLANs, and management:
+port) passes all nine tags: the five PPSK VLANs and the four migrated
+existing VLANs. No management tag - that traffic rides native/untagged
+(Section 3.5's update, 2026-07-16):
 
 **UniFi Network > switch port profile for the `igb5`-facing port:** tagged
-VLANs `205, 235, 236, 237, 238, 300, 301, 302, 303, 304` (native/untagged
-VLAN per your existing convention, unrelated to this project's VLANs).
+VLANs `235, 236, 237, 238, 300, 301, 302, 303, 304` (native/untagged VLAN
+stays the existing flat LAN).
 
 This is the switch-to-router uplink, not the AP-facing ports - those are
-covered separately in Section 3.5 above (native VLAN 205, tagged 300-304
-only, not all ten - APs don't need to see 235-238's traffic).
+covered separately in Section 3.5 above (native VLAN stays the flat LAN,
+tagged 300-304 only, not all nine - APs don't need to see 235-238's
+traffic).
 
 Verify from the OPNsense side once traffic starts flowing:
 

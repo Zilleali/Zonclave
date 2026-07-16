@@ -7,10 +7,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 // ppsk_groups and admin_log, per CLAUDE.md Sections 7 and 17. On the
-// production node these tables are created by installer/install.sh before
-// the panel deploys, so this migration is guarded and becomes a no-op
-// there. It exists for dev and test databases. Definitions must stay in
-// lockstep with db/schema/02_registry.sql and the installer.
+// production node these tables are created by installer/install-ubuntu22.04.sh
+// before the panel deploys, so this migration is guarded and becomes a
+// no-op there. It exists for dev and test databases. Definitions must stay
+// in lockstep with db/schema/02_registry.sql and the installer.
 return new class extends Migration
 {
     public function up(): void

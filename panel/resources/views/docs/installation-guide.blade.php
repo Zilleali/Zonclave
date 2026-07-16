@@ -39,7 +39,7 @@
                 <h2>Prerequisites</h2>
                 <ul>
                     <li><strong>For panel development</strong>: PHP 8.2+ (with <code>mbstring</code>, <code>xml</code>, <code>curl</code>, <code>zip</code>, <code>intl</code>, <code>sqlite3</code>/<code>pdo_sqlite</code>), Composer 2. Works on Windows or Linux.</li>
-                    <li><strong>For production installation</strong>: Ubuntu Server 24.04 LTS - bare metal, or as a VM under any hypervisor (Hyper-V, VMware, VirtualBox, and so on), so the host machine itself can be Windows, Linux, or macOS. Root access on the Ubuntu guest.</li>
+                    <li><strong>For production installation</strong>: Ubuntu Server 22.04 LTS - bare metal, or as a VM under any hypervisor (Hyper-V, VMware, VirtualBox, and so on), so the host machine itself can be Windows, Linux, or macOS. Root access on the Ubuntu guest.</li>
                     <li><strong>For the network side</strong>: a compatible router and a Wi-Fi controller/AP deployment, both already physically installed.</li>
                 </ul>
             </section>
@@ -77,16 +77,16 @@ vendor/bin/phpstan analyse</pre>
                 <p>
                     The installer provisions <strong>one host</strong>: PostgreSQL, FreeRADIUS, and
                     the Zonclave panel, with all secrets generated at runtime and printed once. It is Linux-only by
-                    design (Ubuntu Server 24.04 LTS).
+                    design (Ubuntu Server 22.04 LTS).
                 </p>
 
                 <h3>Plain install</h3>
-                <pre>sudo bash installer/install.sh</pre>
+                <pre>sudo bash installer/install-ubuntu22.04.sh</pre>
                 <p>
                     You'll be prompted for the AP subnet and an admin email; everything else is generated
                     automatically. Or, for a fully non-interactive run, prepare an <code>installer.conf</code> and run:
                 </p>
-                <pre>sudo bash installer/install.sh --config installer.conf</pre>
+                <pre>sudo bash installer/install-ubuntu22.04.sh --config installer.conf</pre>
                 <p>
                     At the end, the installer prints (and saves to a root-only file) the panel URL, the admin login,
                     the RADIUS shared secret, and the seeded test credentials. <strong>Write these

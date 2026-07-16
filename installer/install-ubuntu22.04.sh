@@ -4,16 +4,12 @@
 # System    : PPSK / VLAN / WireGuard Multi-Tunnel System
 # Target OS : Ubuntu Server 22.04.5 LTS
 #
-# One of two officially supported installer targets (CLAUDE.md Section 24.4):
-# this one for Ubuntu 22.04, install.sh for Ubuntu 24.04. Promoted from a
-# private local variant to a tracked, supported installer on 2026-07-16,
-# since Ubuntu 22.04 is what the Office SancoMedia Kelder deployment
-# actually runs (see CLAUDE.md Section 26).
-#
-# The only functional difference from install.sh: Ubuntu 22.04's default
-# repos ship PHP 8.1, which is below Laravel 12 / Filament 5's PHP 8.2+
-# requirement, so this variant adds the ondrej/php PPA to get PHP 8.3.
-# Everything else (PostgreSQL, FreeRADIUS, nginx, panel deploy) is unchanged.
+# The one officially supported installer target (CLAUDE.md Section 24.4,
+# ADR 0003), since Ubuntu 22.04 is what the Office SancoMedia Kelder
+# deployment actually runs (see CLAUDE.md Section 26). Ubuntu 22.04's
+# default repos ship PHP 8.1, which is below Laravel 12 / Filament 5's
+# PHP 8.2+ requirement, so this script adds the ondrej/php PPA to get
+# PHP 8.3 before installing PostgreSQL, FreeRADIUS, nginx, and the panel.
 #
 # Scope     : PostgreSQL + FreeRADIUS + Laravel/Filament web panel (Zonclave)
 #             on ONE host. Does NOT configure OPNsense or UniFi (separate

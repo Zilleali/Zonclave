@@ -2,7 +2,7 @@
 
 Complete, start-to-finish steps for standing up Zonclave inside a Hyper-V VM running Ubuntu 22.04.5 LTS on a Windows Server host, ending with a working panel + FreeRADIUS reachable on the flat LAN at `192.168.1.250`.
 
-This document and `install-ubuntu22.04.sh` are one of two officially supported installer paths (CLAUDE.md Section 24.4) - the other being Ubuntu 24.04 LTS via `install.sh`. This is the path actually running the Office SancoMedia Kelder deployment (Section 26).
+This document and `install-ubuntu22.04.sh` are the officially supported installer path (CLAUDE.md Section 24.4, ADR 0003) - the one actually running the Office SancoMedia Kelder deployment (Section 26). An earlier Ubuntu 24.04 script was removed from the repo when this decision reverted; see ADR 0003 if 24.04 support is ever needed again.
 
 If your VM already exists with Ubuntu installed, skip to whichever section matches where you actually are - each section is self-contained.
 
@@ -206,6 +206,7 @@ sudo bash installer/install-ubuntu22.04.sh
 ```
 
 You'll be prompted for:
+
 - **UniFi controller/AP subnet** - `192.168.1.0/24`
 - **Panel admin email**
 
@@ -226,7 +227,7 @@ curl -I http://127.0.0.1/
 
 From your Windows machine's browser:
 
-```
+```text
 http://192.168.1.250
 ```
 
@@ -245,6 +246,7 @@ should load the Zonclave login page. Log in with the admin email/password from t
 
 **`composer install` fails with `php version (8.1.2) does not satisfy that requirement` even after installing php8.3-\* packages:**
 The `php` command is still aliased to 8.1. Fix:
+
 ```bash
 php8.3 -v   # confirm 8.3 is actually installed
 sudo update-alternatives --set php /usr/bin/php8.3
@@ -259,6 +261,7 @@ Check internet reachability from the VM first (`ping 8.8.8.8`, `curl -I https://
 Confirm in Hyper-V Manager that the VM's network adapter is actually connected to `LAN-Switch`, not `Default Switch`. Confirm the physical NIC picked in Section 2 is the one actually cabled to the USW-16-PoE.
 
 **Installer log for anything not covered above:**
+
 ```bash
 sudo tail -100 /var/log/ppsk-install.log
 ```

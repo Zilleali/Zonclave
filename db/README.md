@@ -10,7 +10,7 @@ Reference SQL for the Zonclave database, per CLAUDE.md Sections 7, 8, and 17.
 
 ## Relationship to the installer
 
-On the production node, `installer/install.sh` is the execution path: it loads the package-shipped FreeRADIUS schema, creates the registry tables, and seeds the same 2 test groups. These files exist so a dev or test database can be bootstrapped identically without running the installer:
+On the production node, `installer/install-ubuntu22.04.sh` is the execution path: it loads the package-shipped FreeRADIUS schema, creates the registry tables, and seeds the same 2 test groups. These files exist so a dev or test database can be bootstrapped identically without running the installer:
 
 ```sh
 createdb ppsk
@@ -19,7 +19,7 @@ psql -d ppsk -f schema/02_registry.sql
 PSQL="psql" DB_NAME=ppsk bash seed/seed_test_ppsk_groups.sh
 ```
 
-If the table definitions or seed derivation change, change them here and in `install.sh` together. They must stay in lockstep.
+If the table definitions or seed derivation change, change them here and in `install-ubuntu22.04.sh` together. They must stay in lockstep.
 
 ## Boundary rules (Section 23.1)
 

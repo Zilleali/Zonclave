@@ -8,9 +8,9 @@
 # panel's registry-to-RADIUS path will. Idempotent by radius_username: safe
 # to re-run, existing groups are left untouched.
 #
-# This mirrors seed_test_groups() in installer/install.sh. If the derivation
-# logic changes, change it in both places (or better, extract to one place
-# once the panel exists).
+# This mirrors seed_test_groups() in installer/install-ubuntu22.04.sh. If the
+# derivation logic changes, change it in both places (or better, extract to
+# one place once the panel exists).
 #
 # Usage:
 #   sudo bash seed_test_ppsk_groups.sh              # local psql as postgres
@@ -21,7 +21,7 @@ DB_NAME="${DB_NAME:-ppsk}"
 PSQL="${PSQL:-sudo -u postgres psql}"
 
 # PSK generator per CLAUDE.md Section 14: 24 chars, A-Za-z0-9, ambiguous
-# characters (0 O 1 l I) excluded. Identical to gen_psk in install.sh.
+# characters (0 O 1 l I) excluded. Identical to gen_psk in install-ubuntu22.04.sh.
 gen_psk() {
   local charset='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
   local out=""

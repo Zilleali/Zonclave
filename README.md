@@ -26,8 +26,7 @@ Each VLAN is fail-closed: if its WireGuard tunnel drops, traffic is dropped, nev
 | --- | --- |
 | `CLAUDE.md` | Project reference and specification. Source of truth |
 | `panel/` | Zonclave web panel: Laravel 12 + Filament 5, PostgreSQL |
-| `installer/install.sh` | One-command installer for the auth + panel node (Ubuntu Server 24.04 LTS) |
-| `installer/install-ubuntu22.04.sh` | Same installer for Ubuntu Server 22.04 LTS, officially supported alongside 24.04 |
+| `installer/install-ubuntu22.04.sh` | One-command installer for the auth + panel node (Ubuntu Server 22.04 LTS, the officially supported target) |
 | `db/` | Reference SQL schema and seed scripts for dev/test databases |
 | `docs/adr/` | Architecture decision records |
 | `docs/runbook/` | Manual OPNsense + UniFi configuration steps (Section 22: not installer-automated in Phase 1) |
@@ -98,7 +97,7 @@ vendor/bin/phpstan analyse
 
 ## Serving the panel with nginx (Linux)
 
-`php artisan serve` is fine for quick iteration, but to validate the panel the way it will actually run in production, serve it through nginx + PHP-FPM on a Linux box. This is exactly what `installer/install.sh`'s `configure_services()` stage automates; doing it by hand once on a test node is a good way to confirm `APP_URL` and the vhost are correct before trusting the full installer.
+`php artisan serve` is fine for quick iteration, but to validate the panel the way it will actually run in production, serve it through nginx + PHP-FPM on a Linux box. This is exactly what `installer/install-ubuntu22.04.sh`'s `configure_services()` stage automates; doing it by hand once on a test node is a good way to confirm `APP_URL` and the vhost are correct before trusting the full installer.
 
 Install nginx and PHP-FPM (Ubuntu/Debian):
 
@@ -161,14 +160,12 @@ On the real installer, `APP_URL` is resolved the same way (auto-detected LAN IP,
 
 ## Installer
 
-The installer provisions the auth + panel node on Ubuntu Server 24.04 LTS or 22.04 LTS: PostgreSQL, FreeRADIUS with `rlm_sql`, and the Zonclave panel, with all secrets generated at runtime and printed once. It is Linux-only by design - the guest OS is pinned per CLAUDE.md Section 24.4, both versions officially supported. The host machine itself can be anything capable of running a hypervisor (Windows via Hyper-V/VirtualBox/VMware, Linux via KVM, macOS via VMware Fusion/Parallels/UTM) or bare metal Ubuntu directly - the installer only ever sees the Ubuntu guest, never the host (Section 24.4).
+The installer provisions the auth + panel node on Ubuntu Server 22.04 LTS: PostgreSQL, FreeRADIUS with `rlm_sql`, and the Zonclave panel, with all secrets generated at runtime and printed once. It is Linux-only by design - the guest OS is pinned per CLAUDE.md Section 24.4. The host machine itself can be anything capable of running a hypervisor (Windows via Hyper-V/VirtualBox/VMware, Linux via KVM, macOS via VMware Fusion/Parallels/UTM) or bare metal Ubuntu directly - the installer only ever sees the Ubuntu guest, never the host (Section 24.4).
 
 ```sh
-sudo bash installer/install.sh
-# or on Ubuntu 22.04:
 sudo bash installer/install-ubuntu22.04.sh
 # or non-interactive:
-sudo bash installer/install.sh --config installer.conf
+sudo bash installer/install-ubuntu22.04.sh --config installer.conf
 ```
 
 See `installer/hyperv-ubuntu22.04-setup.md` for the full Hyper-V-on-Windows walkthrough.

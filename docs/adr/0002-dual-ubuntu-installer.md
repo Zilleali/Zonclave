@@ -1,7 +1,7 @@
 # ADR 0002: Two officially supported installer targets (Ubuntu 24.04 and 22.04)
 
 Date: 2026-07-16
-Status: accepted
+Status: superseded by ADR 0003 (same day)
 
 ## Context
 

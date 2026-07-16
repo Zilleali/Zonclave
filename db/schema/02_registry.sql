@@ -4,7 +4,7 @@
 -- ppsk_groups is the single source of truth. radcheck/radreply rows
 -- (01_radius.sql) are generated from it through the Section 23.1 path,
 -- never maintained independently. Must stay in lockstep with the
--- install_db() block in installer/install.sh.
+-- install_db() block in installer/install-ubuntu22.04.sh.
 
 CREATE TABLE IF NOT EXISTS ppsk_groups (
   id SERIAL PRIMARY KEY,

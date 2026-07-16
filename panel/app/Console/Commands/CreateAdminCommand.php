@@ -8,7 +8,7 @@ use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Hash;
 
-// Installer contract (CLAUDE.md Section 24 / installer/install.sh
+// Installer contract (CLAUDE.md Section 24 / installer/install-ubuntu22.04.sh
 // create_admin_user): the installer calls this to provision the single
 // panel admin (Section 16.1). Idempotent by email.
 class CreateAdminCommand extends Command

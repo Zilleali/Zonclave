@@ -1,8 +1,8 @@
-# Hyper-V + Ubuntu 22.04.5 LTS: Zonclave Setup (local-only guide)
+# Hyper-V + Ubuntu 22.04.5 LTS: Zonclave Setup
 
 Complete, start-to-finish steps for standing up Zonclave inside a Hyper-V VM running Ubuntu 22.04.5 LTS on a Windows Server host, ending with a working panel + FreeRADIUS reachable on the flat LAN at `192.168.1.250`.
 
-**This document and `install-ubuntu22.04.sh` are a local-only pairing, not published to GitHub** (see `.gitignore`). CLAUDE.md Section 24.4 pins Ubuntu Server **24.04** LTS as the one supported production target — this 22.04 path is for local testing only. Nothing here changes that pin.
+This document and `install-ubuntu22.04.sh` are one of two officially supported installer paths (CLAUDE.md Section 24.4) - the other being Ubuntu 24.04 LTS via `install.sh`. This is the path actually running the Office SancoMedia Kelder deployment (Section 26).
 
 If your VM already exists with Ubuntu installed, skip to whichever section matches where you actually are - each section is self-contained.
 
@@ -10,7 +10,7 @@ If your VM already exists with Ubuntu installed, skip to whichever section match
 
 ## 0. What you end up with
 
-- A Hyper-V VM running Ubuntu 22.04.5 LTS, bridged directly onto the real LAN (192.168.1.0/24) — not Hyper-V's NAT'd default switch.
+- A Hyper-V VM running Ubuntu 22.04.5 LTS, bridged directly onto the real LAN (192.168.1.0/24) - not Hyper-V's NAT'd default switch.
 - A static IP: `192.168.1.250` (outside the existing DHCP pool, `192.168.1.10`-`192.168.1.245`).
 - PHP 8.3 (via the `ondrej/php` PPA, since 22.04's default repos only ship 8.1).
 - PostgreSQL, FreeRADIUS, nginx, and the Zonclave panel, all provisioned by `install-ubuntu22.04.sh`.
@@ -43,7 +43,7 @@ Get-NetAdapter
 New-VMSwitch -Name "LAN-Switch" -NetAdapterName "Ethernet" -AllowManagementOS $true
 ```
 
-`-AllowManagementOS $true` is important on a single-NIC server — it keeps the host itself able to use that same adapter after the switch takes it over. Skip it only if this box has a second, dedicated NIC for its own management access.
+`-AllowManagementOS $true` is important on a single-NIC server - it keeps the host itself able to use that same adapter after the switch takes it over. Skip it only if this box has a second, dedicated NIC for its own management access.
 
 ---
 
@@ -76,7 +76,7 @@ If your VM already exists (as yours does, with Ubuntu GUI already installed), sk
 
 ## 4. Run through the Ubuntu installer
 
-Standard install: language, keyboard, disk (use the whole virtual disk), a local user account, and **install OpenSSH server when prompted** (saves a step later — if you missed it, Section 6 covers installing it after the fact).
+Standard install: language, keyboard, disk (use the whole virtual disk), a local user account, and **install OpenSSH server when prompted** (saves a step later - if you missed it, Section 6 covers installing it after the fact).
 
 Reboot when it finishes, remove the ISO:
 
@@ -169,7 +169,7 @@ sudo apt update
 sudo apt install -y php8.3-fpm php8.3-cli php8.3-pgsql php8.3-mbstring php8.3-xml php8.3-curl php8.3-zip php8.3-bcmath php8.3-gd php8.3-intl
 ```
 
-**Confirm the CLI actually points at 8.3** — Ubuntu lets multiple PHP versions coexist via `update-alternatives`, and installing 8.3 alongside an existing 8.1 doesn't always switch the default automatically:
+**Confirm the CLI actually points at 8.3** - Ubuntu lets multiple PHP versions coexist via `update-alternatives`, and installing 8.3 alongside an existing 8.1 doesn't always switch the default automatically:
 
 ```bash
 php -v
@@ -194,7 +194,7 @@ From your Windows machine, now that SSH is up:
 scp -r "C:\Users\ZILL E\Videos\Dev\mikrotik\Zonclave\Zonclave" user@192.168.1.250:~/Zonclave
 ```
 
-(Or `git clone` directly on the VM if it has access to the repo. Note: `install-ubuntu22.04.sh` itself is gitignored, so a fresh `git clone` won't include it — copy that one file across separately, e.g. `scp installer/install-ubuntu22.04.sh user@192.168.1.250:~/Zonclave/installer/`.)
+(Or `git clone` directly on the VM if it has access to the repo - `install-ubuntu22.04.sh` is tracked, so a fresh clone already includes it.)
 
 ---
 
@@ -206,12 +206,12 @@ sudo bash installer/install-ubuntu22.04.sh
 ```
 
 You'll be prompted for:
-- **UniFi controller/AP subnet** — `192.168.1.0/24`
+- **UniFi controller/AP subnet** - `192.168.1.0/24`
 - **Panel admin email**
 
 Everything else (DB credentials, RADIUS shared secret, admin password, seed PPSKs) is generated automatically and printed once at the end, plus saved to `/etc/ppsk-installer/install-summary.txt` (root-only). **Save that output somewhere safe.**
 
-If composer fails partway through with PHP version errors, that means Section 8 wasn't fully applied before running the installer — jump to Troubleshooting below, fix it, then just re-run `sudo bash installer/install-ubuntu22.04.sh` again (it's idempotent).
+If composer fails partway through with PHP version errors, that means Section 8 wasn't fully applied before running the installer - jump to Troubleshooting below, fix it, then just re-run `sudo bash installer/install-ubuntu22.04.sh` again (it's idempotent).
 
 ---
 
@@ -237,7 +237,7 @@ should load the Zonclave login page. Log in with the admin email/password from t
 ## 12. Remaining manual steps (network side)
 
 - **OPNsense**: add the static DHCP mapping for `192.168.1.250` if you haven't already (Section 7).
-- **UniFi**: point the SSID's RADIUS profile at `192.168.1.250`, using the RADIUS shared secret from the install summary. See `docs/opnsense-configuration.md` and `docs/runbook/phase1-opnsense-unifi.md` for the rest of the VLAN/tunnel/firewall build-out — that part is unaffected by any of this (still the flat-LAN management decision from CLAUDE.md Section 3.4, PPSK VLANs 300-304 unchanged).
+- **UniFi**: point the SSID's RADIUS profile at `192.168.1.250`, using the RADIUS shared secret from the install summary. See `docs/opnsense-configuration.md` and `docs/runbook/phase1-opnsense-unifi.md` for the rest of the VLAN/tunnel/firewall build-out - that part is unaffected by any of this (still the flat-LAN management decision from CLAUDE.md Section 3.4, PPSK VLANs 300-304 unchanged).
 
 ---
 
@@ -253,7 +253,7 @@ cd ~/Zonclave/panel && composer install
 ```
 
 **`add-apt-repository ppa:ondrej/php` seems to silently do nothing:**
-Check internet reachability from the VM first (`ping 8.8.8.8`, `curl -I https://ppa.launchpadcontent.net`) — this step needs to reach Launchpad. Re-run `sudo apt update` afterward and confirm with `apt-cache policy php8.3-cli` that the package is now visible before installing.
+Check internet reachability from the VM first (`ping 8.8.8.8`, `curl -I https://ppa.launchpadcontent.net`) - this step needs to reach Launchpad. Re-run `sudo apt update` afterward and confirm with `apt-cache policy php8.3-cli` that the package is now visible before installing.
 
 **VM has no network / can't reach 192.168.1.1 after attaching to LAN-Switch:**
 Confirm in Hyper-V Manager that the VM's network adapter is actually connected to `LAN-Switch`, not `Default Switch`. Confirm the physical NIC picked in Section 2 is the one actually cabled to the USW-16-PoE.

@@ -58,8 +58,8 @@ git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
 
 # Packages what is committed, not the working tree, so a stray uncommitted
 # edit can't silently ship. Warn (don't block) if HEAD isn't what's on disk.
-if ! git -C "$REPO_ROOT" diff --quiet -- installer/install.sh panel/ 2>/dev/null; then
-  warn "Uncommitted changes exist under installer/install.sh or panel/."
+if ! git -C "$REPO_ROOT" diff --quiet -- installer/install.sh installer/install-ubuntu22.04.sh panel/ 2>/dev/null; then
+  warn "Uncommitted changes exist under installer/ or panel/."
   warn "Packaging the last COMMITTED state (HEAD), not your working tree."
 fi
 
@@ -80,12 +80,13 @@ mkdir -p "${STAGE_DIR}/zonclave"
 # never tracked in the first place, so there is no manual exclude list to
 # keep in sync with panel/.gitignore, and no dependency on rsync (not
 # installed by default on Windows Git Bash, where this may run).
-git -C "$REPO_ROOT" archive HEAD -- installer/install.sh \
+git -C "$REPO_ROOT" archive HEAD -- installer/install.sh installer/install-ubuntu22.04.sh \
   | tar -x -C "${STAGE_DIR}/zonclave" --strip-components=1
 git -C "$REPO_ROOT" archive HEAD -- panel \
   | tar -x -C "${STAGE_DIR}/zonclave"
 
 [ -f "${STAGE_DIR}/zonclave/install.sh" ] || die "install.sh missing from HEAD; nothing to package."
+[ -f "${STAGE_DIR}/zonclave/install-ubuntu22.04.sh" ] || die "install-ubuntu22.04.sh missing from HEAD; nothing to package."
 [ -d "${STAGE_DIR}/zonclave/panel" ] || die "panel/ missing from HEAD; nothing to package."
 
 if [ -f "${STAGE_DIR}/zonclave/panel/.env" ]; then

@@ -75,12 +75,15 @@ git push origin develop
 git checkout develop && git merge main --no-ff   # reconciling branches, if ever needed
 ```
 
-## Ubuntu Server 24.04 (the Beelink - production auth + panel node)
+## Ubuntu Server (the Beelink - production auth + panel node)
 
 ### Running the installer
 
 ```sh
+# Ubuntu 24.04:
 sudo bash installer/install.sh
+# Ubuntu 22.04 (what the Beelink VM actually runs):
+sudo bash installer/install-ubuntu22.04.sh
 # or non-interactive, reading a prepared answers file:
 sudo bash installer/install.sh --config installer.conf
 ```
@@ -89,7 +92,8 @@ sudo bash installer/install.sh --config installer.conf
 
 ```sh
 sudo bash run.sh
-# with a prepared installer.conf forwarded to install.sh:
+# auto-detects Ubuntu 24.04 vs 22.04 and runs the matching script
+# with a prepared installer.conf forwarded to it:
 sudo bash run.sh -- --config installer.conf
 ```
 

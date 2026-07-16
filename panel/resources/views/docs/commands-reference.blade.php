@@ -72,13 +72,15 @@ git push origin develop</pre>
                 <h2>Ubuntu Server 24.04 (production auth + panel node)</h2>
 
                 <h3>Running the installer</h3>
-                <pre>sudo bash installer/install.sh
+                <pre>sudo bash installer/install.sh              # Ubuntu 24.04
+sudo bash installer/install-ubuntu22.04.sh   # Ubuntu 22.04
 # or non-interactive, reading a prepared answers file:
 sudo bash installer/install.sh --config installer.conf</pre>
 
                 <h3>Running the encrypted installer</h3>
                 <pre>sudo bash run.sh
-# with a prepared installer.conf forwarded to install.sh:
+# auto-detects Ubuntu 24.04 vs 22.04 and runs the matching script
+# with a prepared installer.conf forwarded to it:
 sudo bash run.sh -- --config installer.conf</pre>
 
                 <h3>Service checks</h3>

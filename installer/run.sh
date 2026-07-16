@@ -15,7 +15,9 @@
 # Usage: sudo bash run.sh [-- INSTALL_SH_ARGS...]
 #   Payload path defaults to zonclave-installer.enc next to this script;
 #   override with ZONCLAVE_PAYLOAD=/path/to/file.enc.
-#   Any arguments after -- are forwarded to install.sh, e.g.:
+#   Picks install.sh or install-ubuntu22.04.sh automatically based on this
+#   host's /etc/os-release (CLAUDE.md Section 24.4: both are officially
+#   supported). Any arguments after -- are forwarded to that script, e.g.:
 #     sudo bash run.sh -- --config installer.conf
 #
 set -euo pipefail
@@ -54,10 +56,28 @@ if ! openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt \
 fi
 unset PASSPHRASE
 
-[ -f "${WORKDIR}/zonclave/install.sh" ] || {
-  echo "Decrypted payload is missing install.sh. Corrupt or wrong payload file?" >&2
+# Pick the installer matching this host's Ubuntu version. Both are shipped
+# in every package built by package.sh, so the same .enc file works on
+# either officially supported target (CLAUDE.md Section 24.4).
+TARGET_SCRIPT=""
+if [ -r /etc/os-release ]; then
+  . /etc/os-release
+  case "${ID:-}:${VERSION_ID:-}" in
+    ubuntu:24.04) TARGET_SCRIPT="install.sh" ;;
+    ubuntu:22.04) TARGET_SCRIPT="install-ubuntu22.04.sh" ;;
+  esac
+fi
+
+if [ -z "$TARGET_SCRIPT" ]; then
+  echo "Unsupported or undetected OS: ${PRETTY_NAME:-unknown}." >&2
+  echo "Zonclave supports Ubuntu Server 24.04 LTS or 22.04 LTS only." >&2
+  exit 1
+fi
+
+[ -f "${WORKDIR}/zonclave/${TARGET_SCRIPT}" ] || {
+  echo "Decrypted payload is missing ${TARGET_SCRIPT}. Corrupt or wrong payload file?" >&2
   exit 1
 }
 
 cd "${WORKDIR}/zonclave"
-exec bash install.sh "${INSTALL_ARGS[@]}"
+exec bash "$TARGET_SCRIPT" "${INSTALL_ARGS[@]}"

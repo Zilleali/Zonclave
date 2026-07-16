@@ -6,7 +6,6 @@ opnsense/wg_configs/*.conf
 
 # installer secrets and artifacts
 installer/installer.conf
-installer/install-ubuntu22.04.sh
 **/install-summary.txt
 *.enc
 *.run

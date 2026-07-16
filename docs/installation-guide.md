@@ -21,7 +21,9 @@ FreeRADIUS only ever does authentication and VLAN assignment. OPNsense only ever
 | --- | --- |
 | `CLAUDE.md` | The full specification. Read this for the "why" behind anything. |
 | `panel/` | The Zonclave web panel: Laravel 12 + Filament 5, PostgreSQL in production (sqlite for local dev). |
-| `installer/install.sh` | The one-command installer for the auth + panel node (Ubuntu Server 24.04 LTS only). |
+| `installer/install.sh` | The one-command installer for the auth + panel node, Ubuntu Server 24.04 LTS. |
+| `installer/install-ubuntu22.04.sh` | The same installer for Ubuntu Server 22.04 LTS. Both are officially supported (Section 24.4). |
+| `installer/hyperv-ubuntu22.04-setup.md` | Full walkthrough for running the 22.04 installer inside a Hyper-V VM on a Windows host. |
 | `installer/package.sh` / `installer/run.sh` | Build and deliver an encrypted, single-command version of the installer. |
 | `db/` | Reference SQL schema and seed scripts, for understanding the data model without spinning up the full app. |
 | `docs/adr/` | Architecture decision records - short notes on why a non-obvious technical choice was made. |
@@ -33,7 +35,7 @@ FreeRADIUS only ever does authentication and VLAN assignment. OPNsense only ever
 ## 3. Prerequisites
 
 - **For panel development**: PHP 8.2+ (with `mbstring`, `xml`, `curl`, `zip`, `intl`, `sqlite3`/`pdo_sqlite`), Composer 2. Works on Windows or Linux.
-- **For production installation**: Ubuntu Server 24.04 LTS (the installer refuses to run on anything else) - bare metal, or as a VM under any hypervisor (Hyper-V, VMware, VirtualBox, KVM, and so on), so the host machine itself can be Windows, Linux, or macOS. Root access on the Ubuntu guest.
+- **For production installation**: Ubuntu Server 24.04 LTS or 22.04 LTS (the installer refuses to run on anything else) - bare metal, or as a VM under any hypervisor (Hyper-V, VMware, VirtualBox, KVM, and so on), so the host machine itself can be Windows, Linux, or macOS. Root access on the Ubuntu guest.
 - **For the network side**: an OPNsense router (Protectli FW6E in this project) and a UniFi controller/AP deployment, both already physically installed.
 
 ## 4. Setting up the panel for development
@@ -71,15 +73,20 @@ All three must pass clean. This is not optional - CLAUDE.md Section 23.2 require
 
 ## 5. Installing in production
 
-The installer provisions **one host**: PostgreSQL, FreeRADIUS with `rlm_sql`, and the Zonclave panel, with all secrets generated at runtime and printed once. It is Linux-only by design (Ubuntu Server 24.04 LTS, pinned per CLAUDE.md Section 24.4).
+The installer provisions **one host**: PostgreSQL, FreeRADIUS with `rlm_sql`, and the Zonclave panel, with all secrets generated at runtime and printed once. It is Linux-only by design, targeting one of two officially supported Ubuntu versions (CLAUDE.md Section 24.4):
+
+- **Ubuntu Server 24.04 LTS** - `installer/install.sh`
+- **Ubuntu Server 22.04 LTS** - `installer/install-ubuntu22.04.sh` (adds PHP 8.3 via the `ondrej/php` PPA, since 22.04's base repos only ship 8.1; otherwise identical). This is what the Office SancoMedia Kelder deployment actually runs - see `installer/hyperv-ubuntu22.04-setup.md` for the full Hyper-V walkthrough if the host is Windows.
 
 ### Plain install
 
 ```sh
 sudo bash installer/install.sh
+# or, on Ubuntu 22.04:
+sudo bash installer/install-ubuntu22.04.sh
 ```
 
-You'll be prompted for the UniFi controller/AP subnet and an admin email; everything else is generated automatically. Or, for a fully non-interactive run, prepare an `installer.conf` (see the variables documented at the top of `installer/install.sh`) and run:
+You'll be prompted for the UniFi controller/AP subnet and an admin email; everything else is generated automatically. Or, for a fully non-interactive run, prepare an `installer.conf` (see the variables documented at the top of the script) and run:
 
 ```sh
 sudo bash installer/install.sh --config installer.conf

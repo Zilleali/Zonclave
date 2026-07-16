@@ -388,16 +388,33 @@ deploy_panel() {
     >>"$LOG_FILE" 2>&1
 
   [ -f .env ] || cp .env.example .env
+
+  # .env.example only ships DB_CONNECTION=sqlite - there is no DB_HOST,
+  # DB_PORT, DB_DATABASE, DB_USERNAME, or DB_PASSWORD line for a plain
+  # sed substitution to match. A substitute-only sed silently does nothing
+  # when the key is absent, leaving the app to fall through to Laravel's
+  # hardcoded config/database.php defaults (database "laravel", empty
+  # password) instead of the real generated values. set_env replaces the
+  # key if present, appends it if not, so it works regardless of what
+  # .env.example happens to contain.
+  set_env() {
+    local key="$1" value="$2"
+    if grep -q "^${key}=" .env; then
+      sed -i "s|^${key}=.*|${key}=${value}|" .env
+    else
+      echo "${key}=${value}" >>.env
+    fi
+  }
   {
-    sed -i "s|^APP_ENV=.*|APP_ENV=production|" .env
-    sed -i "s|^APP_DEBUG=.*|APP_DEBUG=false|" .env
-    sed -i "s|^APP_URL=.*|APP_URL=$(resolved_app_url)|" .env
-    sed -i "s|^DB_CONNECTION=.*|DB_CONNECTION=pgsql|" .env
-    sed -i "s|^DB_HOST=.*|DB_HOST=127.0.0.1|" .env
-    sed -i "s|^DB_PORT=.*|DB_PORT=5432|" .env
-    sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${DB_NAME}|" .env
-    sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USER}|" .env
-    sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD}|" .env
+    set_env APP_ENV production
+    set_env APP_DEBUG false
+    set_env APP_URL "$(resolved_app_url)"
+    set_env DB_CONNECTION pgsql
+    set_env DB_HOST 127.0.0.1
+    set_env DB_PORT 5432
+    set_env DB_DATABASE "${DB_NAME}"
+    set_env DB_USERNAME "${DB_USER}"
+    set_env DB_PASSWORD "${DB_PASSWORD}"
   } 2>>"$LOG_FILE"
 
   php artisan key:generate --force >>"$LOG_FILE" 2>&1

@@ -6,6 +6,8 @@ opnsense/wg_configs/*.conf
 
 # installer secrets and artifacts
 installer/installer.conf
+installer/install-ubuntu22.04.sh
+installer/hyperv-ubuntu22.04-setup.md
 **/install-summary.txt
 *.enc
 *.run

@@ -75,10 +75,11 @@ Note: client has 4 x Protectli FW6E units total. The 4th is a spare or future lo
 | --- | --- | --- |
 | Zonclave server hardware | Beelink SER5 Pro (AMD Ryzen 7 5800H, 16GB RAM, 466GB NVMe SSD) | Running Windows 11, hosting Zonclave as a Hyper-V VM |
 | Host OS | Windows 11 (SancoverPC-4) | Hyper-V enabled, VM set to auto-start |
+| Host static IP | 192.168.1.174 | Final, confirmed 2026-07-16 - inside the DHCP pool (see note below) |
 | VM name | Zonclave | Hyper-V VM, Ubuntu, 8.23 GB RAM assigned |
 | VM OS | Ubuntu 22.04 LTS | Confirmed running, internet working via External Switch |
 | VM network | Hyper-V External Switch bound to Realtek PCIe GbE (Ethernet 2, MAC B0-41-6F-13-BD-BA) | Was Internal switch (no network) - fixed 2026-07-16 |
-| Server static IP | 192.168.1.250 | Set in netplan, outside DHCP pool |
+| VM static IP | 192.168.1.175 | Set in netplan. Final, confirmed 2026-07-16 (updated from the originally planned 192.168.1.250 - see Section 3.4) |
 | VPN | Residential WireGuard peer configs from VPN provider | 5 per router, 15 total for Phase 1 |
 | Remote access (ZILL) | RustDesk to Windows host + SSH to Ubuntu VM | Tailscale also available on the Windows host for future use |
 
@@ -111,10 +112,13 @@ Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" 2>
 | --- | --- |
 | Network | 192.168.1.0/24 (flat, untagged - OPNsense's existing LAN) |
 | Gateway (OPNsense) | 192.168.1.1 |
-| Zonclave server static IP | 192.168.1.250 (outside the existing 192.168.1.10-192.168.1.245 DHCP pool - set statically on the host/VM and add a static mapping in OPNsense's Services > DHCPv4 > [LAN] so it's never handed out to another device) |
+| Windows host static IP | 192.168.1.174 (final, confirmed 2026-07-16) |
+| Zonclave VM static IP | 192.168.1.175 (final, confirmed 2026-07-16 - originally planned as 192.168.1.250, updated once the actual Hyper-V deployment was assigned real addresses) |
 | Switch (USW-16-PoE) | 192.168.1.12 (existing) |
 
-Remote access for ZILL: WireGuard admin tunnel on OPNsense peering to ZILL's machine, giving SSH access to the Zonclave server and web UI access to OPNsense and the UniFi controller from anywhere, without public port-forwarding. Unaffected by this change other than the target IP being 192.168.1.250 instead of a VLAN 205 address.
+**DHCP pool overlap (flagged 2026-07-16, not yet resolved):** both 192.168.1.174 and 192.168.1.175 fall inside the existing DHCP pool (192.168.1.10-192.168.1.245), unlike the originally planned 192.168.1.250 which was deliberately chosen to sit outside it. Until static mappings are added in OPNsense's Services > DHCPv4 > [LAN] for both addresses (keyed to their MAC addresses), there is a real risk OPNsense hands one of them to an unrelated device later, causing an IP conflict. Add those two static mappings before considering this settled.
+
+Remote access for ZILL: WireGuard admin tunnel on OPNsense peering to ZILL's machine, giving SSH access to the Zonclave server and web UI access to OPNsense and the UniFi controller from anywhere, without public port-forwarding.
 
 Topology at Kelder:
 
@@ -127,7 +131,7 @@ UniFi USW-16-PoE (192.168.1.12)
     |
     ├── Cloud Key Gen2+ (management, flat LAN)
     ├── U6+ AP x5 (broadcasts PPSK SSID)
-    └── Zonclave server (192.168.1.250)
+    └── Zonclave server (192.168.1.175, Hyper-V VM on host 192.168.1.174)
          - FreeRADIUS :1812/1813
          - PostgreSQL :5432
          - Zonclave panel :80
@@ -527,7 +531,7 @@ This is only feasible cleanly because of the service-layer separation in Section
 - [x] Panel stack: **Laravel + Filament**
 - [x] Database: **PostgreSQL**
 - [x] Installer OS: **Ubuntu Server 24.04 LTS** (updated 2026-07-13, was 22.04; 24.04 is what will be installed on the Beelink)
-- [x] Server: Beelink SER5 Pro, flat LAN, static IP 192.168.1.250 (updated 2026-07-14, was VLAN 205 static IP 172.16.74.10 - see Section 3.4)
+- [x] Server: Beelink SER5 Pro, flat LAN, static IP 192.168.1.175 (updated 2026-07-16, was 192.168.1.250; before that, VLAN 205 static IP 172.16.74.10 - see Section 3.4)
 - [x] Management VLAN: **none at Kelder** - flat LAN 192.168.1.0/24 used directly (decision reversed 2026-07-14, see Section 3.4). VLAN 205 / subnet 172.16.74.0/24 remains reserved and unused (Section 5)
 - [x] FreeRADIUS hosting: Beelink SER5 Pro, co-located with the panel
 - [x] Phase 1 tunnel count: **5 per router, 15 total** (3 routers x 5 tunnels)
@@ -546,17 +550,19 @@ This is only feasible cleanly because of the service-layer separation in Section
 - [x] Server deployment model: **Hyper-V VM on Windows 11** (Beelink SER5 Pro). Confirmed 2026-07-16. Not bare metal as originally planned. Windows host hardening (no auto-reboot, VM auto-start, no sleep) confirmed with Sancover same day.
 - [x] VM OS: **Ubuntu 22.04 LTS** (confirmed running, not 24.04 as noted in earlier planning). PHP 8.3 was added via the ondrej/php PPA. Resolved 2026-07-16: `installer/install-ubuntu22.04.sh` is the one officially supported installer (Section 24.4). Briefly ran both 24.04 and 22.04 as dual-supported the same day (ADR 0002), reverted back to single-target 22.04 hours later (ADR 0003) once the 22.04 script needed real-world fixes on the actual Kelder VM - `install.sh` (24.04) was removed from the repo entirely, not just deprecated in place.
 - [x] Hyper-V virtual switch: **External Switch** bound to Ethernet 2 (Realtek PCIe GbE, MAC B0-41-6F-13-BD-BA). Fixed 2026-07-16, was Internal switch with no network access.
-- [x] Dev environment: **panel deployed at /var/www/Zonclave/panel on the Zonclave VM**, Nginx configured, accessible at `http://192.168.1.250/admin`. SQLite currently active for dev (must switch to PostgreSQL before any RADIUS or ppsk_groups work begins, see Section 26).
+- [x] Dev environment superseded by production: `install-ubuntu22.04.sh` now deploys the real panel to `/opt/zonclave` on PostgreSQL (the earlier `/var/www/Zonclave/panel` SQLite dev copy is separate and not the production path). Panel confirmed reachable and admin login working at `http://192.168.1.175/admin` (2026-07-16).
 - [x] Host machine compatibility: **any hypervisor-capable machine works** (Windows, Linux, or Mac), since the installer only ever targets the Ubuntu 22.04 guest, never the host. No installer rewrite needed. Confirmed 2026-07-16, see Section 24.4.
+- [x] Installer bugs found running against the real Kelder VM, all fixed 2026-07-16: (1) `install_db()` used `psql -f` to load the FreeRADIUS schema as the `postgres` OS user, which cannot read FreeRADIUS's config files - switched to shell redirection so root reads the file instead; (2) `self_check()`'s RADIUS smoke test used the wrong client secret against 127.0.0.1 (RADIUS_SECRET belongs to the AP-subnet client, not the default `localhost` client) - now reads the actual `localhost` client secret from `clients.conf`; (3) `deploy_panel()` used substitute-only `sed` for `.env`'s `DB_HOST`/`DB_PORT`/`DB_DATABASE`/`DB_USERNAME`/`DB_PASSWORD`, which silently did nothing since `.env.example` doesn't ship those keys - replaced with a set-or-append `set_env` helper. FreeRADIUS confirmed returning `Access-Accept` with the correct VLAN, and the panel confirmed loading with real PostgreSQL data.
+- [x] Static IPs finalized 2026-07-16: Windows host 192.168.1.174, Zonclave VM 192.168.1.175 (both superseding the originally planned 192.168.1.250 - see Section 3.4).
 
-**Still open (resolve before or during first session):**
+**Still open:**
 
-- [ ] Fix whatever is failing when `install-ubuntu22.04.sh` runs on the actual Kelder VM (reported 2026-07-16, "not perfectly" - exact error not yet captured, get the failing stage/log output before changing the script further)
-- [ ] Switch panel database from SQLite to PostgreSQL (Section 26, next immediate step)
-- [ ] Install and configure FreeRADIUS on the Zonclave VM (Section 8)
-- [ ] Create Filament admin user
+- [ ] Add static DHCP mappings in OPNsense for 192.168.1.174 and 192.168.1.175 (Section 3.4) - both currently sit inside the existing DHCP pool with no reservation, a real collision risk
 - [ ] Confirm the 5 WireGuard peer configs per router are ready for Location 2 and Location 3 (10 more, 15 total) before OPNsense config begins there
 - [ ] Install Tailscale on the Ubuntu VM for persistent remote SSH access (optional but recommended given the Hyper-V setup)
+- [ ] OPNsense manual config at Kelder: VLANs 300-304, WireGuard tunnels, gateways, firewall allow/block rules (Sections 9-12; see `docs/opnsense-configuration.md` and `docs/runbook/phase1-opnsense-unifi.md`)
+- [ ] UniFi: RADIUS profile + SSID pointed at 192.168.1.175 with the shared secret from the install summary (Section 8.3)
+- [ ] Full Section 21 acceptance test pass end to end, once the network side above is in place
 
 ## 21. Acceptance Testing (Phase 1)
 
@@ -718,35 +724,40 @@ Current state of the Zonclave VM as of this date. Update this section whenever t
 | Item | Value |
 | --- | --- |
 | Host machine | Beelink SER5 Pro (SancoverPC-4), Windows 11 |
+| Host static IP | 192.168.1.174 (final, confirmed 2026-07-16) |
 | VM name | Zonclave |
 | VM OS | Ubuntu 22.04 LTS |
-| VM IP | 192.168.1.250 (static, netplan) |
+| VM static IP | 192.168.1.175 (final, confirmed 2026-07-16 - was 192.168.1.250 in earlier planning) |
 | VM RAM assigned | 8.23 GB |
 | Hyper-V switch | External Switch (bound to Ethernet 2, Realtek PCIe GbE) |
-| Panel URL | `http://192.168.1.250/admin` |
-| Remote access | RustDesk to Windows host, then SSH to 192.168.1.250 |
+| Panel URL | `http://192.168.1.175/admin` - confirmed reachable, admin login working (2026-07-16) |
+| Remote access | RustDesk to Windows host, then SSH to 192.168.1.175 |
+
+Note: both IPs are inside the existing DHCP pool (192.168.1.10-192.168.1.245) with no static mapping yet - see the open item in Section 20.
 
 ### 26.2 Installed software (on the Ubuntu VM)
 
 | Software | Version | Status |
 | --- | --- | --- |
 | PHP | 8.3.6 (via ondrej/php PPA) | Running |
-| Nginx | Default Ubuntu package | Running, configured for Zonclave |
-| PostgreSQL | Installed | Running, not yet wired to the panel |
-| FreeRADIUS | Not yet installed | Next step after DB switch |
+| Nginx | Default Ubuntu package | Running, serving /opt/zonclave/public |
+| PostgreSQL | Installed | Running, wired to the panel (database `ppsk`) |
+| FreeRADIUS | Installed via `install-ubuntu22.04.sh` | Running, confirmed returning Access-Accept with correct VLAN attributes (2026-07-16) |
 | Composer | 2.x | Installed at /usr/local/bin/composer |
 
 ### 26.3 Panel deployment
 
+The production deployment (`install-ubuntu22.04.sh`) lives at `/opt/zonclave`, separate from an earlier manual dev copy at `/var/www/Zonclave/panel` (SQLite, superseded - do not confuse the two when debugging).
+
 | Item | Value |
 | --- | --- |
-| Code location | /var/www/Zonclave/panel |
-| Nginx site | /etc/nginx/sites-available/zonclave (symlinked to sites-enabled) |
-| Nginx document root | /var/www/Zonclave/panel/public |
+| Code location | /opt/zonclave |
+| Nginx site | /etc/nginx/sites-available/zonclave (symlinked to sites-enabled), `server_name 192.168.1.175` |
+| Nginx document root | /opt/zonclave/public |
 | PHP-FPM socket | /run/php/php8.3-fpm.sock |
-| Ownership | zille:www-data (app files), www-data:www-data (storage + bootstrap/cache) |
-| Storage permissions | 775 (storage/, bootstrap/cache/) |
-| Git repo root | /var/www/Zonclave |
+| Ownership | www-data:www-data (set by the installer's `deploy_panel()`) |
+| Database | PostgreSQL, database `ppsk`, confirmed working (2026-07-16) |
+| Repo checkout (source) | /var/www/Zonclave - `git pull` here, then re-run `installer/install-ubuntu22.04.sh` to redeploy to /opt/zonclave |
 | .git ownership | zille:zille (do not chown to www-data - breaks git pull) |
 
 ### 26.4 Critical permission rules (learned from incidents 2026-07-16)
@@ -755,31 +766,28 @@ Current state of the Zonclave VM as of this date. Update this section whenever t
 - **storage/framework/views must be writable by www-data.** If Blade falls back to system tmp, Laravel raises a fatal ErrorException. Fix: `sudo chown -R www-data:www-data /var/www/Zonclave/panel/storage/framework`
 - **database/ directory and database.sqlite must be writable by www-data** when using SQLite. Fix: `sudo chown www-data:www-data /var/www/Zonclave/panel/database /var/www/Zonclave/panel/database/database.sqlite`
 
-### 26.5 Immediate next steps (in order)
+### 26.5 Installer bugs found and fixed against this VM (2026-07-16)
 
-1. **Switch database from SQLite to PostgreSQL.** The panel is currently running on SQLite (default Laravel dev config). All RADIUS projection work, ppsk_groups, and the RADIUS write boundary (Section 23) depend on PostgreSQL. Do not build any RADIUS or ppsk_groups features against SQLite.
+Running `install-ubuntu22.04.sh` against this actual VM (not just in isolation) surfaced three real bugs, all now fixed:
 
-   ```bash
-   # Check current DB config
-   grep DB_ /var/www/Zonclave/panel/.env
-   ```
+1. **FreeRADIUS schema failed to load silently.** `install_db()` ran `psql -f` as the `postgres` OS user, which has no read permission on FreeRADIUS's config files - "Permission denied" was masked by a trailing `|| true`, so the installer carried on as if `radcheck`/`radreply` existed. They didn't, and seeding failed downstream with a confusing `relation "radcheck" does not exist` error. Fixed by using shell redirection so root reads the file instead of the `postgres` user.
+2. **`self_check()`'s RADIUS smoke test used the wrong secret.** It tested `127.0.0.1` with `RADIUS_SECRET`, but that secret belongs to the `ppsk_unifi` client (scoped to the AP subnet) - `127.0.0.1` actually matches FreeRADIUS's own default `localhost` client with its own separate secret. Wrong secret against RADIUS produces total silence (RFC 2865), not a rejection, which reads as "FreeRADIUS is broken" when it isn't. Fixed by reading the `localhost` client's actual secret out of `clients.conf`.
+3. **`.env`'s database settings were never actually written.** `deploy_panel()` used substitute-only `sed` (`s|^KEY=.*|KEY=value|`) for `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` - but `.env.example` only ships `DB_CONNECTION=sqlite`, with none of those other keys present to substitute. The app silently fell through to Laravel's hardcoded `config/database.php` defaults (database `laravel`, empty password), producing `SQLSTATE[08006] fe_sendauth: no password supplied`. Fixed with a set-or-append `set_env` helper.
 
-2. **Run migrations against PostgreSQL.** After updating .env, run `php artisan migrate:fresh` to rebuild schema on PostgreSQL.
+Panel and FreeRADIUS are both confirmed working end to end as of this date: admin login succeeds at `http://192.168.1.175/admin`, and `radtest` against the seeded `ppsk_group001` returns `Access-Accept` with `Tunnel-Private-Group-Id = "300"`.
 
-3. **Create Filament admin user.**
+### 26.6 Next steps (in order)
 
-   ```bash
-   cd /var/www/Zonclave/panel
-   php artisan make:filament-user
-   ```
-
-4. **Confirm panel loads at `http://192.168.1.250/admin`** with the new admin credentials.
-
-5. **Install FreeRADIUS** per Section 8 on the Zonclave VM.
-
-6. **(Optional but recommended) Install Tailscale on the Ubuntu VM** so ZILL has persistent SSH access without depending on RustDesk to the Windows host first. The Windows host already has Tailscale installed.
+1. **Add static DHCP mappings in OPNsense** for 192.168.1.174 and 192.168.1.175 (Services > DHCPv4 > [LAN], keyed to MAC address) - both are inside the existing pool with no reservation yet.
+2. **(Optional but recommended) Install Tailscale on the Ubuntu VM** so ZILL has persistent SSH access without depending on RustDesk to the Windows host first. The Windows host already has Tailscale installed.
 
    ```bash
    curl -fsSL https://tailscale.com/install.sh | sh
    sudo tailscale up
    ```
+
+3. **OPNsense manual config**: VLANs 300-304, WireGuard tunnels, gateways, and the allow/block firewall rule pairs (Sections 9-12). See `docs/opnsense-configuration.md` for the general pattern and `docs/runbook/phase1-opnsense-unifi.md` for the Kelder-specific steps.
+4. **UniFi**: point the SSID's RADIUS profile at 192.168.1.175 with the shared secret from the install summary (`/etc/ppsk-installer/install-summary.txt` on the VM), and confirm RADIUS-based Private PSK support on the installed Network application version (Section 8.3).
+5. **Create at least one real PPSK through the panel itself** (not just the installer's seeded test rows) and `radtest` it, to confirm the full software-layer chain - panel to `ppsk_groups` to `PpskService::projectToRadius()` to `radcheck`/`radreply` - works end to end on this production database, not only the pre-seeded data.
+6. **Full Section 21 acceptance test pass**, once the network side above is in place: real device connects, correct VLAN, correct egress IP, disable/delete revoke access, kill-switch fails closed, VLAN isolation holds, DNS leak test passes, every action lands in `admin_log`.
+7. **Replicate to Location 2 and Location 3** once Kelder passes acceptance testing, after confirming their WireGuard peer configs are ready (Section 20).

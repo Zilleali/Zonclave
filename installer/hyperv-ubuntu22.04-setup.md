@@ -4,6 +4,8 @@ Complete, start-to-finish steps for standing up Zonclave inside a Hyper-V VM run
 
 This document and `install-ubuntu22.04.sh` are the officially supported installer path (CLAUDE.md Section 24.4, ADR 0003) - the one actually running the Office SancoMedia Kelder deployment (Section 26). An earlier Ubuntu 24.04 script was removed from the repo when this decision reverted; see ADR 0003 if 24.04 support is ever needed again.
 
+**Note on the example IP below:** `192.168.1.250` here is the recommended pattern - a static address deliberately chosen outside the DHCP pool. The actual Kelder deployment ended up on `192.168.1.174`/`192.168.1.175` instead (inside the pool, requiring static DHCP mappings as a workaround - see CLAUDE.md Section 3.4). Follow this guide's `.250`-style pattern for Location 2 and Location 3 rather than repeating that.
+
 If your VM already exists with Ubuntu installed, skip to whichever section matches where you actually are - each section is self-contained.
 
 ---

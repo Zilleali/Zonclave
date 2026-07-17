@@ -107,6 +107,18 @@ vendor/bin/phpstan analyse</pre>
                     anyone with root on the target can recover the decrypted installer at runtime regardless.
                 </p>
 
+                <h3>Updating a running deployment</h3>
+                <p>
+                    Once installed, don't re-run the full installer for a simple code change - it regenerates the
+                    database password and RADIUS secret on every run, which can desync things if the run doesn't
+                    complete cleanly. Use the operational CLI instead:
+                </p>
+                <pre>sudo zonclave update</pre>
+                <p>
+                    Pulls the latest code, resyncs it to the served copy, runs migrations, and clears/rebuilds all
+                    caches - without touching the database, FreeRADIUS config, or any secret.
+                </p>
+
                 <h3>What the installer does not do</h3>
                 <p>
                     It configures the auth + panel node only. It does not touch the router or Wi-Fi controller -

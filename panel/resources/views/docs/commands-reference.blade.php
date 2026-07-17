@@ -98,6 +98,43 @@ nginx -t                          # test nginx config without reloading</pre>
                 <h3>Panel HTTP check</h3>
                 <pre>curl -I http://127.0.0.1/admin/login
 # Expect: HTTP/1.1 200 OK</pre>
+
+                <h3>FreeRADIUS live debug (PEAP/inner-tunnel troubleshooting)</h3>
+                <p>
+                    A basic auth smoke test only proves the software layer - it authenticates like plain PAP, not
+                    PEAP, so it can't catch a VLAN attribute that gets resolved but never reaches the final
+                    Access-Accept (see the OPNsense guide's gotchas section). To see exactly what a real
+                    WPA2-Enterprise device negotiates:
+                </p>
+                <pre>sudo systemctl stop freeradius
+sudo freeradius -X
+# reconnect the test device (forget the network first on Windows, so it
+# can't resume a cached PEAP session and skip the round trip)
+# Ctrl+C once the attempt finishes, then:
+sudo systemctl start freeradius</pre>
+                <p>
+                    Look for the final <code>Sent Access-Accept</code>, not an earlier <code>Access-Challenge</code>
+                    (those can show attributes that don't survive to the actual result), and confirm the VLAN
+                    attribute is present in it.
+                </p>
+                <pre>sudo freeradius -CX     # config self-test; binary is freeradius, not radiusd</pre>
+            </section>
+
+            <section>
+                <h2>Windows (test client verification)</h2>
+                <p>
+                    A test laptop connected over Wi-Fi but also on Ethernet (e.g. for a remote-support session) will
+                    often route test traffic out Ethernet by default, silently invalidating an egress-IP check.
+                    Force the request out a specific local interface instead of disconnecting anything:
+                </p>
+                <pre>Get-NetAdapter                                    # confirm the Wi-Fi adapter's IP
+curl.exe --interface 10.30.0.10 -v https://ifconfig.me</pre>
+                <p>
+                    Bind by IP address, not adapter name - <code>--interface "Wi-Fi"</code> fails on Windows builds
+                    of curl with "Failed binding local connection end". A clean timeout (no TLS handshake, no
+                    response) here after RADIUS auth already succeeded points at outbound NAT for that VLAN's
+                    WireGuard tunnel, not the RADIUS/VLAN assignment itself.
+                </p>
             </section>
 
             <section>

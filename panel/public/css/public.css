@@ -647,6 +647,28 @@ img, svg {
     text-align: center;
 }
 
+.doc-body table {
+    display: block;
+    overflow-x: auto;
+    width: 100%;
+    margin: 1rem 0 0;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.doc-body th,
+.doc-body td {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.doc-body th {
+    color: var(--text-strong);
+    background: var(--surface);
+}
+
 /* Footer */
 
 .site-footer {

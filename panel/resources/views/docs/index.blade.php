@@ -25,6 +25,16 @@
                 <h2>OPNsense configuration guide</h2>
                 <p>How the network side is built: VLANs, WireGuard tunnels, fail-closed firewall policy, DNS, and the UniFi integration.</p>
             </a>
+
+            <a href="{{ url('/docs/site-configuration') }}" class="card card-link">
+                <h2>Site configuration: Office SancoMedia Kelder</h2>
+                <p>The real, live deployment - actual hardware, addressing, VLAN/tunnel build, and current status.</p>
+            </a>
+
+            <a href="{{ url('/docs/troubleshooting') }}" class="card card-link">
+                <h2>Troubleshooting</h2>
+                <p>Real issues hit during deployment, each with the actual symptom, root cause, and fix.</p>
+            </a>
         </div>
     </section>
 

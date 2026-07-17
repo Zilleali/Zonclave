@@ -36,17 +36,33 @@ class PublicPagesTest extends TestCase
         $this->get('/docs/opnsense-configuration')->assertOk()->assertSee('OPNsense Configuration Guide');
     }
 
-    public function test_public_pages_do_not_link_to_github_or_internal_docs(): void
+    public function test_site_configuration_guide_is_reachable(): void
     {
-        // Section 20/25.3-style guardrail for this feature: the runbook and
-        // CLAUDE.md contain real client infrastructure details and must
-        // never be linked from a public page.
-        foreach (['/', '/docs', '/docs/installation-guide', '/docs/commands-reference', '/docs/opnsense-configuration'] as $url) {
+        $this->get('/docs/site-configuration')->assertOk()->assertSee('Site Configuration');
+    }
+
+    public function test_troubleshooting_guide_is_reachable(): void
+    {
+        $this->get('/docs/troubleshooting')->assertOk()->assertSee('Troubleshooting');
+    }
+
+    public function test_public_pages_do_not_link_to_github_or_the_raw_runbook_file(): void
+    {
+        // Section 20/25.3-style guardrail: this deployment's real site
+        // detail is deliberately published on /docs/site-configuration and
+        // /docs/troubleshooting (client decision, recorded in CLAUDE.md
+        // Section 20). What must still never happen is a link out to the
+        // source repository or to the raw runbook file itself - the public
+        // pages transcribe the content, they don't expose the repo.
+        foreach ([
+            '/', '/docs', '/docs/installation-guide', '/docs/commands-reference',
+            '/docs/opnsense-configuration', '/docs/site-configuration', '/docs/troubleshooting',
+        ] as $url) {
             $html = $this->get($url)->getContent();
 
             $this->assertIsString($html);
             $this->assertStringNotContainsString('github.com', $html);
-            $this->assertStringNotContainsString('runbook', $html);
+            $this->assertStringNotContainsString('runbook/phase1-opnsense-unifi', $html);
         }
     }
 }

@@ -100,6 +100,43 @@
             </section>
 
             <section>
+                <h2>Gotchas found running this against real hardware</h2>
+                <p>
+                    These surfaced provisioning a real group end to end, not from reasoning about the design - each
+                    one leaves the tunnel, gateway, and firewall rule all looking healthy while the device still gets
+                    no internet, so they're easy to mistake for something else being wrong.
+                </p>
+                <ul>
+                    <li>
+                        <strong>Gateway monitoring needs a real internet host, not the tunnel peer's own address.</strong>
+                        Many residential WireGuard providers don't answer ICMP on their tunnel-internal IP - it's an
+                        endpoint, not a router. If the gateway's Monitor IP is set to that same address, the router
+                        shows the gateway as down even with a live handshake, and the fail-closed policy then
+                        correctly (but confusingly) blocks a tunnel that's actually fine. Point Monitor IP at a
+                        stable public host reachable through the tunnel instead.
+                    </li>
+                    <li>
+                        <strong>Outbound NAT is not automatic on every configuration.</strong> A router already
+                        running in Hybrid or Manual outbound NAT mode needs an explicit NAT rule added for each new
+                        WireGuard tunnel interface, translating that VLAN's client subnet to the tunnel's own
+                        address. Without it, traffic leaves the tunnel still carrying the client's private source
+                        address, and most providers' WireGuard peers silently drop it - a clean, silent timeout with
+                        no error anywhere.
+                    </li>
+                    <li>
+                        <strong>RADIUS-assigned VLAN over WPA2-Enterprise/PEAP needs one extra RADIUS server
+                        setting.</strong> PEAP resolves the real identity and does its challenge/response inside an
+                        encrypted inner tunnel, separate from the outer RADIUS exchange. By default, the RADIUS
+                        server does not copy VLAN attributes resolved during that inner exchange out to the final
+                        outer Access-Accept - a basic auth smoke test won't catch this, since it doesn't speak PEAP.
+                        A device can authenticate successfully and still land on the wrong network. The RADIUS
+                        server needs its tunneled-reply setting enabled for the inner tunnel's attributes to
+                        actually reach the client.
+                    </li>
+                </ul>
+            </section>
+
+            <section>
                 <h2>Verifying the result</h2>
                 <p>
                     A deployment is only proven once a real device connects with a PPSK, lands on the correct VLAN,

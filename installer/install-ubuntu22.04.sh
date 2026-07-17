@@ -158,13 +158,38 @@ gather_input() {
     fi
   fi
 
-  DB_PASSWORD="$(gen_hex 20)"
-  RADIUS_SECRET="$(gen_hex 24)"
+  # A re-run must never silently rotate secrets that are already live
+  # (CLAUDE.md Section 26.9) - generating a fresh DB_PASSWORD/RADIUS_SECRET
+  # on every run only makes sense for a genuine first install. Reuse
+  # whatever is already deployed when it's found, so a re-run can't
+  # desync Postgres/FreeRADIUS/.env from each other, and running the
+  # installer again to pick up a code change doesn't feel like it "loses"
+  # credentials.
+  if [ -f "${PANEL_DIR}/.env" ] && grep -q '^DB_PASSWORD=' "${PANEL_DIR}/.env"; then
+    DB_PASSWORD="$(sed -n 's/^DB_PASSWORD=//p' "${PANEL_DIR}/.env" | head -1)"
+    log "Reusing the existing database password (re-run detected)."
+  else
+    DB_PASSWORD="$(gen_hex 20)"
+  fi
+
+  if [ -f "${FR_DIR}/clients.conf" ] && grep -q '^client ppsk_unifi {' "${FR_DIR}/clients.conf"; then
+    RADIUS_SECRET="$(sed -n '/^client ppsk_unifi {/,/^}/{/secret/p}' "${FR_DIR}/clients.conf" \
+      | head -1 | sed -E 's/.*secret[[:space:]]*=[[:space:]]*"?([^"[:space:]]+)"?.*/\1/')"
+    log "Reusing the existing RADIUS shared secret (re-run detected)."
+  else
+    RADIUS_SECRET="$(gen_hex 24)"
+  fi
+
+  # ADMIN_PASSWORD is only actually applied for a brand-new admin account -
+  # create_admin_user()/CreateAdminCommand deliberately never overwrites an
+  # existing admin's password (same Section 26.9 reasoning), so generating
+  # a fresh value here is harmless either way, never presented as real
+  # unless it was actually just set (see summary()).
   ADMIN_PASSWORD="$(gen_admin)"
   SEED_PSK_1="$(gen_psk)"
   SEED_PSK_2="$(gen_psk)"
 
-  ok "Configuration gathered. Secrets generated."
+  ok "Configuration gathered."
 }
 
 # ---------------------------------------------------------------------------
@@ -464,16 +489,36 @@ deploy_panel() {
 }
 
 create_admin_user() {
+  # ADMIN_CREATED tracks whether this run actually set the admin's
+  # password, so summary() knows whether ADMIN_PASSWORD is real (a
+  # freshly created account) or stale (an existing account left
+  # untouched - see CreateAdminCommand and CLAUDE.md Section 26.9).
+  ADMIN_CREATED="true"
+
   if php artisan list 2>/dev/null | grep -q "panel:create-admin"; then
-    php artisan panel:create-admin --email="${ADMIN_EMAIL}" --password="${ADMIN_PASSWORD}" \
-      >>"$LOG_FILE" 2>&1 && return 0
+    local output
+    output="$(php artisan panel:create-admin --email="${ADMIN_EMAIL}" --password="${ADMIN_PASSWORD}" 2>&1)"
+    echo "$output" >>"$LOG_FILE"
+    echo "$output" | grep -q "already exists" && ADMIN_CREATED="false"
+    return 0
   fi
-  php artisan tinker --execute="
-    \$u = \App\Models\User::firstOrNew(['email' => '${ADMIN_EMAIL}']);
-    \$u->name = 'Administrator';
-    \$u->password = bcrypt('${ADMIN_PASSWORD}');
-    \$u->save();
-  " >>"$LOG_FILE" 2>&1 || warn "Admin user creation via fallback failed; create it manually."
+
+  local tinker_output
+  tinker_output="$(php artisan tinker --execute="
+    if (\App\Models\User::where('email', '${ADMIN_EMAIL}')->exists()) {
+      echo 'ADMIN_ALREADY_EXISTS';
+    } else {
+      \$u = new \App\Models\User(['email' => '${ADMIN_EMAIL}']);
+      \$u->name = 'Administrator';
+      \$u->password = bcrypt('${ADMIN_PASSWORD}');
+      \$u->save();
+      echo 'ADMIN_CREATED_OK';
+    }
+  " 2>&1)"
+  echo "$tinker_output" >>"$LOG_FILE"
+  echo "$tinker_output" | grep -q "ADMIN_ALREADY_EXISTS" && ADMIN_CREATED="false"
+  echo "$tinker_output" | grep -qE "ADMIN_ALREADY_EXISTS|ADMIN_CREATED_OK" \
+    || warn "Admin user creation via fallback failed; create it manually."
 }
 
 # ---------------------------------------------------------------------------
@@ -589,6 +634,15 @@ summary() {
   step "Summary"
   local ip; ip="$(hostname -I | awk '{print $1}')"
 
+  # ADMIN_PASSWORD only reflects reality if this run actually created the
+  # account (see create_admin_user()). Printing a freshly generated value
+  # for an admin whose password was deliberately left untouched would be
+  # actively misleading, not just stale.
+  local admin_password_display="${ADMIN_PASSWORD}"
+  if [ "${ADMIN_CREATED:-true}" = "false" ]; then
+    admin_password_display="(unchanged - use your existing password, or reset it from the panel's Profile page)"
+  fi
+
   umask 077
   cat >"$SUMMARY_FILE" <<EOF
 Zonclave - Install Summary (Ubuntu 22.04.5 LTS local variant)
@@ -597,7 +651,7 @@ Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 Panel URL           : $(resolved_app_url)/
 Panel admin email   : ${ADMIN_EMAIL}
-Panel admin password: ${ADMIN_PASSWORD}
+Panel admin password: ${admin_password_display}
 
 RADIUS server IP    : ${ip}
 RADIUS client subnet: ${RADIUS_CLIENT_SUBNET}
@@ -621,7 +675,7 @@ EOF
   echo    "-------------------------------------------------------------"
   echo    " Panel URL            : $(resolved_app_url)/"
   echo    " Panel admin email    : ${ADMIN_EMAIL}"
-  echo    " Panel admin password : ${ADMIN_PASSWORD}"
+  echo    " Panel admin password : ${admin_password_display}"
   echo    " RADIUS server IP     : ${ip}"
   echo    " RADIUS shared secret : ${RADIUS_SECRET}"
   echo    "-------------------------------------------------------------"

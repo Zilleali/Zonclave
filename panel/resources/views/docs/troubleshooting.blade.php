@@ -18,6 +18,15 @@
         <div class="doc-body">
 
             <section>
+                <h2>Re-running the installer resets the admin login (or feels like it "loses" credentials)</h2>
+                <div class="card">
+                    <p><strong>Symptom:</strong> after re-running the full installer to pick up a code change, the previously-known panel admin password no longer works.</p>
+                    <p><strong>Cause:</strong> the installer generated a brand-new random admin password on every run and unconditionally overwrote the existing admin account's password hash with it - a real bug, not user error. The underlying PPSK/tunnel registry data was never actually at risk (those inserts are conflict-guarded), but the admin's own login genuinely was silently replaced on every re-run.</p>
+                    <p><strong>Fix:</strong> the admin-creation command no longer overwrites an existing account's password under any circumstances - a password can only be set once, at genuine first creation. Changing an existing admin's password is only ever done from the panel's own Profile page. Routine code updates should also use <code>sudo zonclave update</code> instead of re-running the full installer at all - it never touches credentials in the first place.</p>
+                </div>
+            </section>
+
+            <section>
                 <h2>Panel shows old UI/UX after pulling new code on the server</h2>
                 <div class="card">
                     <p><strong>Symptom:</strong> <code>git pull</code> succeeds in the repo checkout, but the panel in the browser still shows the previous version.</p>

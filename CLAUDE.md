@@ -881,3 +881,54 @@ what makes it safe to run on every code change, unlike the full installer.
 Usage: `sudo zonclave update`. The same `.env`-preserving fix was also
 applied to the installer's own `deploy_panel()` `cp -a` step, so a full
 installer re-run can't reintroduce the original corruption either.
+
+### 26.9 Fixed: re-running the installer silently rotated credentials
+
+Reported 2026-07-17: "every time when i update code it will remove my
+credentials, data will be lost." Traced to a real bug, not user error -
+before `zonclave update` existed (Section 26.8), the only way to deploy a
+code change was to re-run the full installer, and every run of
+`gather_input()` generated a **brand-new random** `DB_PASSWORD`,
+`RADIUS_SECRET`, and `ADMIN_PASSWORD`, unconditionally:
+
+- `install_db()` ran `ALTER ROLE ${DB_USER} WITH PASSWORD '${DB_PASSWORD}'`
+  on every run, resetting the live Postgres role's password even when the
+  role already existed - this is the deeper mechanism behind the
+  FreeRADIUS/Postgres password-mismatch incident already described
+  earlier in this section.
+- `create_admin_user()` called `panel:create-admin`, whose old
+  implementation (`User::firstOrNew(...)->save()`) unconditionally
+  overwrote the existing admin's password hash with whatever fresh
+  `ADMIN_PASSWORD` had just been generated - silently invalidating the
+  admin's known login on every single re-run. The actual PPSK/tunnel
+  registry data (`ppsk_groups`, `radcheck`, `radreply`, `admin_log`) was
+  never at risk - those inserts are already `ON CONFLICT DO NOTHING`/
+  `WHERE NOT EXISTS` guarded - but the admin's own login credential really
+  was silently replaced every time, which is what actually happened here.
+
+**Fixed:**
+
+1. `CreateAdminCommand` (`app/Console/Commands/CreateAdminCommand.php`) no
+   longer upserts. If the email already has an account, it leaves the
+   password alone and reports "already exists; password left unchanged."
+   A password can now only ever be set once, at genuine account creation -
+   changing it afterward is the Profile page's job (Section 16.1), not a
+   side effect of redeploying code. Covered by
+   `tests/Feature/CreateAdminCommandTest.php`.
+2. `gather_input()` now reuses the existing `DB_PASSWORD` (read back from
+   `/opt/zonclave/.env`) and `RADIUS_SECRET` (read back from
+   `clients.conf`'s `ppsk_unifi` client block) when they're already
+   present, instead of generating fresh ones on every run. A first install
+   still generates both fresh, exactly as before.
+3. `summary()` no longer prints a fabricated admin password when the
+   account already existed and its password was left untouched - it shows
+   "(unchanged - use your existing password, or reset it from the panel's
+   Profile page)" instead, so the summary file can never show a password
+   that isn't actually the one on the account.
+
+Net effect: re-running the full installer is now genuinely idempotent
+with respect to credentials, not just "self-consistent if it completes."
+Routine code updates should still use `sudo zonclave update`
+(Section 26.8), which never touched credentials in the first place - this
+fix is defense in depth for the case where the full installer gets
+re-run anyway.

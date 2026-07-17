@@ -790,8 +790,94 @@ Static DHCP mappings for .174, .175, and .191 are done (Section 3.4, Section 20)
    sudo tailscale up
    ```
 
-2. **OPNsense manual config**: VLANs 300-304, WireGuard tunnels, gateways, and the allow/block firewall rule pairs (Sections 9-12). See `docs/opnsense-configuration.md` for the general pattern and `docs/runbook/phase1-opnsense-unifi.md` for the Kelder-specific steps.
-3. **UniFi**: point the SSID's RADIUS profile at 192.168.1.175 with the shared secret from the install summary (`/etc/ppsk-installer/install-summary.txt` on the VM), and confirm RADIUS-based Private PSK support on the installed Network application version (Section 8.3).
-4. **Create at least one real PPSK through the panel itself** (not just the installer's seeded test rows) and `radtest` it, to confirm the full software-layer chain - panel to `ppsk_groups` to `PpskService::projectToRadius()` to `radcheck`/`radreply` - works end to end on this production database, not only the pre-seeded data.
-5. **Full Section 21 acceptance test pass**, once the network side above is in place: real device connects, correct VLAN, correct egress IP, disable/delete revoke access, kill-switch fails closed, VLAN isolation holds, DNS leak test passes, every action lands in `admin_log`.
+2. **OPNsense manual config**: VLAN300 is done and validated end to end (Section 26.7). VLANs 301-304 still need the same build - repeat `docs/runbook/phase1-opnsense-unifi.md` Section 3 for each, including the outbound NAT step (3.4a) that VLAN300 initially missed.
+3. **UniFi**: done. SSID RADIUS profile points at 192.168.1.175 with the shared secret from the install summary; RADIUS-based PPSK confirmed working over WPA2-Enterprise/PEAP once the FreeRADIUS-side fix in Section 26.7 was applied.
+4. **Create at least one real PPSK through the panel itself**: done - `ppsk_group046` (label `VLAN300_LAPTOPTEST`-style, VLAN 300), created via the panel UI, not a seeded row. Confirms the full software-layer chain - panel to `ppsk_groups` to `PpskService::projectToRadius()` to `radcheck`/`radreply` - works end to end on production data.
+5. **Full Section 21 acceptance test pass**: partially done for VLAN300 (tests 1-4 pass - see Section 26.7). Tests 5-10 (disable/delete revoke access, kill-switch fails closed, VLAN isolation holds, DNS leak test passes, every action lands in `admin_log`) still need to be run explicitly before signing off VLAN300, and the whole pass repeats once VLANs 301-304 are built.
 6. **Replicate to Location 2 and Location 3** once Kelder passes acceptance testing, after confirming their WireGuard peer configs are ready (Section 20).
+
+### 26.7 First real PPSK/VLAN/tunnel test - issues found and fixed (2026-07-17)
+
+A Windows laptop connected to `Zonclave-PPSK-TEST` with `ppsk_group046`
+(WPA2-Enterprise, Microsoft Protected EAP) for the first genuine end-to-end
+test of the chain: SSID to RADIUS to VLAN to WireGuard tunnel to residential
+egress IP. Three real, previously-undiscovered gaps surfaced, none of them
+caught by `radtest` or the panel's own test suite - both exercise the
+software layer only, neither exercises PEAP or the live network path. All
+three are now documented as explicit steps in
+`docs/runbook/phase1-opnsense-unifi.md` (Sections 3.3, 3.4a, 4.2) so they
+don't get rediscovered per VLAN or per site:
+
+1. **FreeRADIUS was authenticating correctly but not handing off the VLAN
+   over PEAP.** `radtest` against `ppsk_group046` returned the correct
+   `Tunnel-Private-Group-Id = "300"`, but the real device still landed on
+   the flat LAN. Root cause, found via `sudo freeradius -X` live debug:
+   WPA2-Enterprise/PEAP resolves the actual identity and does its
+   MSCHAPv2 exchange inside an encrypted **inner tunnel**
+   (`sites-enabled/inner-tunnel`), and by default FreeRADIUS does not copy
+   reply attributes resolved there (the VLAN, from `radreply`) out to the
+   final outer `Access-Accept`. Fixed by setting `use_tunneled_reply = yes`
+   in the `peap { }` block of `/etc/freeradius/3.0/mods-available/eap` and
+   restarting FreeRADIUS. This is a one-time, per-FreeRADIUS-host setting,
+   not per-VLAN or per-PPSK. `radtest` alone can never catch this class of
+   bug, since it doesn't speak PEAP - it authenticates the same way `chap`/
+   plain auth would. A real WPA2-Enterprise device test is the only thing
+   that exercises this path.
+2. **`GW_WG_VLAN300` showed permanently Offline in OPNsense despite a live
+   WireGuard handshake.** The gateway's Monitor IP was left at the
+   WireGuard peer's own tunnel-internal address, which the residential
+   provider doesn't answer ICMP on (it's a tunnel endpoint, not a router).
+   Section 12's fail-closed rule then correctly refused to route through a
+   gateway OPNsense believed was down - a false negative with the same
+   symptom as a real outage. Fixed by setting Monitor IP (a separate field
+   from Gateway IP) to a real internet host reachable through the tunnel
+   (`8.8.8.8`).
+3. **Outbound NAT was missing for `WG_VLAN300`.** This OPNsense box's
+   Firewall > NAT > Outbound mode is Manual, not Automatic, and only had
+   rules for the pre-existing `WAN`/`OVPN` groups (LAN235-238) - nothing
+   for the new WireGuard tunnel interfaces. Without translation, VLAN300
+   client traffic left the tunnel still sourced as its private client
+   address; the provider's WireGuard peer silently dropped it (WireGuard's
+   cryptokey routing generally only accepts packets whose source matches
+   the peer's configured `AllowedIPs`). Symptom was a clean connection
+   timeout with the firewall rule, gateway, and tunnel all appearing
+   healthy - genuinely hard to distinguish from a provider-side problem
+   without checking NAT specifically. Fixed by adding a manual outbound
+   NAT rule (interface `WG_VLAN300`, source `NET_VLAN300`, translation
+   "Interface address"). Must be repeated per VLAN (301-304) and per
+   router - this is the step most likely to be forgotten during Section
+   26.6 item 2's replication, since it's easy to assume the firewall allow
+   rule alone is sufficient.
+
+Confirmed working after all three fixes: the laptop received `10.30.0.10`/
+gateway `10.30.0.1` (correct VLAN300 subnet) and, with Ethernet ruled out
+as a confounding route via `curl.exe --interface 10.30.0.10`, egressed
+through a distinct public IP matching the `WG_VLAN300` residential tunnel,
+not the router's real WAN address. This satisfies Section 21.1 tests 1-4
+for VLAN300; tests 5-10 are still open (Section 26.6 item 5).
+
+### 26.8 Operational CLI: `zonclave update`
+
+Added 2026-07-17, in response to a real deployment pain point this
+session: redeploying a code change previously meant either manually
+copying files (which is what corrupted production `.env` in the incident
+behind the original version of this section) or re-running the full
+installer (which regenerates `DB_PASSWORD`/`RADIUS_SECRET` every run and
+caused the FreeRADIUS/Postgres password-mismatch incident also fixed this
+session).
+
+`scripts/zonclave-update.sh` is the source of truth (installed as
+`/usr/local/bin/zonclave` by the installer's `install_cli` stage, and
+bundled into the encrypted package by `installer/package.sh`). It does
+**only**: `git pull` in `/var/www/Zonclave` (as the checkout's actual
+owner, never root, per Section 26.4), sync `panel/` into `/opt/zonclave`
+(preserving the existing `.env` by backup/restore around the `cp -a`, so a
+stale checkout `.env` can never overwrite production config again),
+`composer install`, `php artisan migrate --force`, clear and rebuild all
+caches, fix ownership, restart `php8.3-fpm`/reload `nginx`. It deliberately
+never touches PostgreSQL, FreeRADIUS config, or secrets - that boundary is
+what makes it safe to run on every code change, unlike the full installer.
+
+Usage: `sudo zonclave update`. The same `.env`-preserving fix was also
+applied to the installer's own `deploy_panel()` `cp -a` step, so a full
+installer re-run can't reintroduce the original corruption either.

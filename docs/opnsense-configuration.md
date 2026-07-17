@@ -54,6 +54,39 @@ Verify by deliberately killing a tunnel and confirming a connected device loses 
 - **SSID** - configured for RADIUS-assigned PPSK, with the VLAN left unpinned at the SSID level; FreeRADIUS assigns it per credential via a RADIUS attribute, not a fixed network on the SSID. As of current UniFi firmware, this feature works on WPA2 (2.4GHz and 5GHz) - WPA3 and 6GHz aren't yet supported for RADIUS-assigned PPSK, worth confirming against the specific site's UniFi Network application version before committing to it (CLAUDE.md Section 8.3).
 - **Trunk port** - the switch port feeding the router carries every provisioned VLAN tagged.
 
-## 7. Verifying the result
+## 7. Gotchas found running this against real hardware
+
+These surfaced provisioning a real group end to end, not from reasoning
+about the design - each one leaves the tunnel, gateway, and firewall rule
+all looking healthy while the device still gets no internet, so they're
+easy to mistake for something else being wrong.
+
+- **Gateway monitoring needs a real internet host, not the tunnel peer's
+  own address.** Many residential WireGuard providers don't answer ICMP on
+  their tunnel-internal IP - it's an endpoint, not a router. If the
+  gateway's Monitor IP is set to that same address, OPNsense shows the
+  gateway as down even with a live handshake, and the fail-closed policy
+  then correctly (but confusingly) blocks a tunnel that's actually fine.
+  Point Monitor IP at a stable public host reachable through the tunnel
+  instead (`8.8.8.8`, `1.1.1.1`, or similar).
+- **Outbound NAT is not automatic on every OPNsense configuration.** A box
+  already running in Hybrid or Manual outbound NAT mode needs an explicit
+  NAT rule added for each new WireGuard tunnel interface, translating that
+  VLAN's client subnet to the tunnel's own address. Without it, traffic
+  leaves the tunnel still carrying the client's private source address,
+  and most providers' WireGuard peers silently drop it (cryptokey
+  routing only accepts packets whose source matches what the peer was
+  told to expect) - a clean, silent timeout with no error anywhere.
+- **RADIUS-assigned VLAN over WPA2-Enterprise/PEAP needs one extra RADIUS
+  server setting.** PEAP resolves the real identity and does its
+  challenge/response inside an encrypted inner tunnel, separate from the
+  outer RADIUS exchange. By default, FreeRADIUS does not copy VLAN
+  attributes resolved during that inner exchange out to the final outer
+  Access-Accept - `radtest` won't catch this, since it doesn't speak PEAP.
+  A device can authenticate successfully and still land on the wrong
+  network. The RADIUS server needs its tunneled-reply setting enabled for
+  the inner tunnel's attributes to actually reach the client.
+
+## 8. Verifying the result
 
 A deployment is only proven once a real device connects with a PPSK, lands on the correct VLAN, and its outbound public IP matches that VLAN's residential tunnel - checked from the device itself, not inferred from the configuration. See [commands-reference.md](commands-reference.md) for the exact verification commands (`wg show`, `curl -s ifconfig.me`, `radtest`) used at each step, and CLAUDE.md Section 21.1 for the full acceptance test list.

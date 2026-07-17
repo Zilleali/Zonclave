@@ -51,6 +51,13 @@ to configure, not assumed:
       `radtest` against the seeded `ppsk_group001` returns `Access-Accept`
       with `Tunnel-Private-Group-Id = "300"`, confirmed locally on that
       host.
+- [x] **Confirmed 2026-07-17: VLAN300 validated end to end on real
+      hardware**, a Windows laptop over WPA2-Enterprise/PEAP with
+      `ppsk_group046`. This is the first full run of the chain this
+      document describes, and it surfaced three real gaps not caught by
+      `radtest` or the panel's own test suite - all three are folded into
+      the steps below (3.3, 3.4a, 4.2) so they aren't rediscovered per
+      VLAN or per site. Full incident detail: CLAUDE.md Section 26.7.
 
 ### A note on interface names
 
@@ -257,6 +264,26 @@ configured, before wiring a PPSK to it.
   ping.** If monitoring can be enabled, do so - Section 12's fail-closed
   behavior depends on OPNsense knowing the gateway is down.
 
+**Real-world finding, 2026-07-17:** on the actual Kelder box, leaving
+**Monitor IP** at the WireGuard peer's own tunnel address (the same value
+as Gateway IP, e.g. `10.10.20.1`) left the gateway showing **Offline** in
+`System > Gateways > Status` permanently, even though `wg show WG_VLAN300`
+confirmed a live handshake. The residential provider's peer simply doesn't
+answer ICMP on its own tunnel-internal address - it's a tunnel endpoint,
+not a router. Since Section 12's fail-closed rule pins traffic to a gateway
+that OPNsense believes is down, this silently blocked all VLAN300 traffic
+despite the tunnel being genuinely healthy - a false negative, not a real
+outage, but with the exact same symptom (no internet) from the client's
+side.
+
+**Fix:** in the Gateway edit form, **Monitor IP is a separate field from
+Gateway IP.** Set Monitor IP to a real, always-up internet host reachable
+*through* the tunnel - `8.8.8.8` or `1.1.1.1` both work - instead of the
+peer's own tunnel address. Save, apply, and confirm **System > Gateways >
+Status** flips to Online with a real round-trip time and 0% loss before
+moving on. Do this for every `GW_WG_VLAN<id>` on every router; it is not a
+Kelder-specific quirk, it's how most residential WireGuard providers behave.
+
 Verify:
 
 ```sh
@@ -310,6 +337,53 @@ pfctl -a 'filter/VLAN300' -sr
 Read it top to bottom and confirm the block rule and its exceptions
 genuinely precede the allow rule, exactly as intended - this is the one
 thing worth re-reading twice.
+
+### 3.4a Outbound NAT - required, easy to miss
+
+**Real-world finding, 2026-07-17:** the firewall allow rule in 3.4 is not
+enough by itself. On the actual Kelder box, **Firewall > NAT > Outbound**
+is set to **Manual outbound NAT rule generation** (not Automatic) - this
+box already had manual rules for `WAN` and `OVPN` covering the existing
+LAN235-238 groups, and nothing was ever added for the new `WG_VLAN<id>`
+interfaces. With no translation rule, VLAN300 client traffic left the
+tunnel still sourced as its private client address (`10.30.0.10`), and the
+residential provider's WireGuard peer silently dropped it - WireGuard
+peers generally only accept packets whose source matches their configured
+`AllowedIPs` (cryptokey routing), and a client-subnet address the provider
+never assigned is outside that range. Symptom: the gateway shows Online,
+`wg show` shows a live handshake, the firewall rule in 3.4 correctly
+allows the traffic out - and the client still gets a plain connection
+timeout, no response, nothing in any log. Confirm your box's Outbound NAT
+mode before assuming this step is unnecessary; if it's Automatic, OPNsense
+may already handle this per-interface and this section can be skipped -
+but verify with the same test at the end of this section rather than
+assuming.
+
+If Manual (or Hybrid) mode is in use, add one rule per VLAN, matching the
+existing pattern for the other groups on this box:
+
+**Firewall > NAT > Outbound > Add:**
+
+- Interface: `WG_VLAN300`
+- Source: `NET_VLAN300` (`10.30.0.0/24`)
+- Destination: `*` (any)
+- Translation / NAT Address: **Interface address**
+- Static Port: `NO`
+- Description: `NAT_VLAN300_TO_WG_VLAN300`
+
+Save, apply, and repeat for `WG_VLAN301` through `WG_VLAN304`. Verify from
+a real client on that VLAN (not from OPNsense itself - OPNsense's own
+gateway-monitor traffic is sourced differently and will falsely appear to
+work even when this rule is missing):
+
+```powershell
+# Windows client, forcing the request out a specific local address so a
+# dual-homed test machine (Wi-Fi + Ethernet) can't mask the result:
+curl.exe --interface 10.30.0.10 -v https://ifconfig.me
+```
+
+Expect a `200` with a public IP that matches the tunnel's residential
+address, not a timeout.
 
 ### 3.5 Management VLAN - SUPERSEDED, do not build (kept for history)
 
@@ -452,6 +526,51 @@ versions. The essentials, regardless of label:
   `Tunnel-Private-Group-Id` (Section 8.2), so the SSID itself must allow
   RADIUS-assigned VLANs rather than forcing one.
 
+**Real-world finding, 2026-07-17 - required FreeRADIUS-side config, not an
+OPNsense/UniFi setting:** a device connecting with WPA2-Enterprise/PEAP
+(Microsoft Protected EAP - the standard Windows sign-in method for this
+SSID) authenticated successfully and got a `radtest`-confirmed-correct
+`Tunnel-Private-Group-Id`, but still landed on the flat LAN instead of its
+assigned VLAN. Root cause, found via `sudo freeradius -X` live debug on the
+FreeRADIUS host (`192.168.1.175`): PEAP resolves the actual username and
+does its MSCHAPv2 challenge/response **inside an encrypted inner tunnel**
+(`sites-enabled/inner-tunnel`), separate from the outer RADIUS
+conversation. The VLAN attributes from `radreply` get correctly resolved
+during that inner exchange, but FreeRADIUS does not copy them out to the
+final outer `Access-Accept` unless explicitly told to - by default it
+doesn't, for isolation reasons that don't apply to this project's
+single-purpose deployment. The final Access-Accept came back with
+`MS-MPPE-*` keys and nothing else - no `Tunnel-Private-Group-Id` at all -
+which is why the AP/switch had nothing to assign the device to and it fell
+through to the untagged/native VLAN.
+
+**Fix, on the FreeRADIUS host (not OPNsense):**
+
+```sh
+sudo grep -n "use_tunneled_reply" /etc/freeradius/3.0/mods-available/eap
+```
+
+Two matches appear (`peap { }` and `ttls { }` blocks each have their own).
+Edit the one inside `peap { }` specifically (leave `ttls` alone unless
+that's also in use):
+
+```sh
+sudo nano /etc/freeradius/3.0/mods-available/eap
+# inside peap { ... }:  use_tunneled_reply = no   ->   use_tunneled_reply = yes
+sudo freeradius -CX          # config self-test - correct binary name on
+                              # Debian/Ubuntu is freeradius, not radiusd
+sudo systemctl restart freeradius
+```
+
+This is a one-time, per-FreeRADIUS-host setting - it does not need
+repeating per VLAN or per PPSK, only once per site's FreeRADIUS
+installation. Forget the network on the test device and reconnect to force
+a fresh PEAP handshake (Windows can otherwise resume a cached session and
+skip the round-trip that would exercise the fix); confirm with a live
+`sudo freeradius -X` capture that the final `Sent Access-Accept` now
+includes `Tunnel-Private-Group-Id`, not just the Access-Challenge partway
+through the exchange.
+
 ### 4.3 Trunk port
 
 Confirm the switch port trunking to `igb5` (Section 0's confirmed trunk
@@ -477,7 +596,46 @@ ifconfig | grep -B1 -A3 vlan300
 Confirm frames are actually arriving tagged (interface up, non-zero
 packet counters) once a test device associates.
 
-## 5. Acceptance testing (Section 21.1, mapped)
+## 5. Creating a PPSK credential in the panel
+
+Section 3 and Section 4 are one-time, once-per-VLAN infrastructure. This
+step is the repeatable one - do it once per group, any time a new PPSK is
+needed against an already-provisioned VLAN/tunnel pair.
+
+1. Log in to the panel at `http://192.168.1.175/admin` (or the current
+   `resolved_app_url`) with the admin credentials from the installer summary
+   (`/etc/ppsk-installer/install-summary.txt`, root-only).
+2. On the PPSK list (home page), click **Add New PPSK** - this opens a
+   modal, not a separate page (CLAUDE.md Section 16.3).
+3. Fill in:
+   - **Label**: `VLAN<id>_<GroupName>` (e.g. `VLAN300_LAPTOPTEST`) - the
+     regex validation rejects anything off this pattern.
+   - **VLAN / tunnel**: pick from the dropdown (Section 1's fixed block -
+     picking the VLAN also fixes the tunnel, they're paired 1:1).
+   - **Password**: **Auto-generate (recommended)** or **Enter manually**
+     (CLAUDE.md Section 14, client-requested option). Auto-generate unless
+     there's a specific reason a device needs a pre-chosen password.
+   - **Enabled**: leave checked.
+4. Save. A notification shows the **RADIUS username and password together,
+   once** - copy both immediately (each has its own copy button). The
+   password cannot be retrieved again after this notification closes;
+   regenerating (the row's "Regenerate password" action) is the only way
+   to get a new one later, and it invalidates the old one immediately.
+5. Verify the credential resolves correctly before handing it to a device:
+
+   ```sh
+   radtest <radius_username> '<the password just shown>' 127.0.0.1 0 '<localhost client secret from clients.conf>'
+   ```
+
+   Expect `Access-Accept` with `Tunnel-Private-Group-Id = "<vlan id>"`.
+   This confirms the panel-to-`radcheck`/`radreply` path (CLAUDE.md
+   Section 23) is correct - it does **not** confirm the device will
+   actually land on that VLAN over Wi-Fi, since PEAP has its own failure
+   mode not exercised by `radtest` (see Section 4.2's note on
+   `use_tunneled_reply` above). Both checks matter; neither substitutes
+   for the other.
+
+## 6. Acceptance testing (Section 21.1, mapped)
 
 Run all 10 Section 21.1 tests now, per router, before calling that site
 done. This runbook doesn't repeat their text - see CLAUDE.md Section 21.1
@@ -485,8 +643,8 @@ directly - but here is where each one lands against what you just built:
 
 | Test | Exercises |
 | --- | --- |
-| 1-2 | Panel (Section 16.3) create + this doc's Section 3 (VLAN assignment) |
-| 3-4 | This doc's Section 3.2/3.3 (tunnel identity, egress IP) |
+| 1-2 | This doc's Section 5 (panel create) + Section 3 (VLAN assignment) |
+| 3-4 | This doc's Section 3.2/3.3/3.4a (tunnel identity, outbound NAT, egress IP) |
 | 5-6 | Panel disable/delete (already covered by `PpskServiceTest`) |
 | 7 | This doc's Section 3.7 (kill-switch) |
 | 8 | This doc's Section 3.4 and 3.5 (block rule against RFC1918/management, and the management VLAN's own isolation) |

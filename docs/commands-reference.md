@@ -143,6 +143,51 @@ sudo systemctl restart php8.3-fpm nginx
 sudo ufw allow 80/tcp   # if ufw is enabled
 ```
 
+### FreeRADIUS live debug (PEAP/inner-tunnel troubleshooting)
+
+`radtest` only proves the software layer (panel to `radcheck`/`radreply`),
+since it authenticates like plain PAP, not PEAP, so it cannot catch the
+`use_tunneled_reply` class of bug (see `docs/runbook/phase1-opnsense-unifi.md`
+Section 4.2). To see exactly what a real WPA2-Enterprise device negotiates:
+
+```sh
+sudo systemctl stop freeradius
+sudo freeradius -X
+# reconnect the test device (forget the network first on Windows, so it
+# can't resume a cached PEAP session and skip the round trip)
+# Ctrl+C once the attempt finishes, then:
+sudo systemctl start freeradius
+```
+
+Look for the final `Sent Access-Accept`, not an earlier `Access-Challenge`
+(those can show attributes that don't survive to the actual result), and
+confirm `Tunnel-Private-Group-Id` is present in it.
+
+Config self-test only (no live capture):
+
+```sh
+sudo freeradius -CX     # binary is `freeradius` on Debian/Ubuntu, not `radiusd`
+```
+
+## Windows (test client verification)
+
+A test laptop connected over Wi-Fi for a PPSK test but also on Ethernet
+(e.g. for a remote-support session) will often route test traffic out
+Ethernet by default, silently invalidating an egress-IP check. Force the
+request out a specific local interface instead of disconnecting anything:
+
+```powershell
+Get-NetAdapter                                    # confirm the Wi-Fi adapter's IP
+curl.exe --interface 10.30.0.10 -v https://ifconfig.me
+```
+
+Bind by IP address, not adapter name (`--interface "Wi-Fi"` fails on
+Windows builds of curl with "Failed binding local connection end").
+A clean timeout (no TLS handshake, no response) here after RADIUS auth
+already succeeded points at OPNsense's outbound NAT for that VLAN's
+WireGuard tunnel, not the RADIUS/VLAN assignment - see
+`docs/runbook/phase1-opnsense-unifi.md` Section 3.4a.
+
 ## OPNsense (FreeBSD shell, over SSH or console)
 
 These are verification commands from [docs/runbook/phase1-opnsense-unifi.md](runbook/phase1-opnsense-unifi.md) - the OPNsense GUI is used for the actual creation steps (see that doc for why), these are for confirming the result.

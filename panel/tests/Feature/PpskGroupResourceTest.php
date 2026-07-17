@@ -5,19 +5,19 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Enums\PpskStatus;
-use App\Filament\Resources\PpskGroups\Pages\CreatePpskGroup;
-use App\Filament\Resources\PpskGroups\Pages\EditPpskGroup;
 use App\Filament\Resources\PpskGroups\Pages\ListPpskGroups;
 use App\Models\PpskGroup;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Crypt;
 use Livewire\Livewire;
 use Tests\TestCase;
 
-// UI smoke coverage of the create/disable/delete flows (CLAUDE.md
-// Section 21.2). These exercise the actual Filament pages, not PpskService
-// directly, to confirm the UI wiring calls the service correctly and never
-// bypasses it with a default Eloquent save.
+// UI smoke coverage of the create/edit/disable/delete/regenerate flows
+// (CLAUDE.md Section 21.2). Create and Edit are modal actions on the List
+// page (Sancover UX request 2026-07-17, Section 16.3), not dedicated pages
+// - these exercise the actual Filament wiring, not PpskService directly, to
+// confirm the UI never bypasses the service with a default Eloquent save.
 class PpskGroupResourceTest extends TestCase
 {
     use RefreshDatabase;
@@ -31,10 +31,14 @@ class PpskGroupResourceTest extends TestCase
 
     public function test_create_flow_writes_registry_and_radius_rows(): void
     {
-        Livewire::test(CreatePpskGroup::class)
-            ->fillForm(['label' => 'VLAN300_TESTA', 'vlan_id' => 300, 'enabled' => true])
-            ->call('create')
-            ->assertHasNoFormErrors();
+        Livewire::test(ListPpskGroups::class)
+            ->callAction('create', data: [
+                'label' => 'VLAN300_TESTA',
+                'vlan_id' => 300,
+                'enabled' => true,
+                'password_source' => 'generate',
+            ])
+            ->assertHasNoActionErrors();
 
         $group = PpskGroup::query()->sole();
 
@@ -45,10 +49,51 @@ class PpskGroupResourceTest extends TestCase
 
     public function test_create_flow_rejects_a_vlan_outside_the_provisioned_block(): void
     {
-        Livewire::test(CreatePpskGroup::class)
-            ->fillForm(['label' => 'VLAN305_TESTA', 'vlan_id' => 305, 'enabled' => true])
-            ->call('create')
-            ->assertHasFormErrors(['vlan_id']);
+        Livewire::test(ListPpskGroups::class)
+            ->callAction('create', data: [
+                'label' => 'VLAN305_TESTA',
+                'vlan_id' => 305,
+                'enabled' => true,
+                'password_source' => 'generate',
+            ])
+            ->assertHasActionErrors(['vlan_id']);
+    }
+
+    public function test_create_flow_with_manual_password_uses_the_supplied_value(): void
+    {
+        Livewire::test(ListPpskGroups::class)
+            ->callAction('create', data: [
+                'label' => 'VLAN300_TESTA',
+                'vlan_id' => 300,
+                'enabled' => true,
+                'password_source' => 'manual',
+                'manual_password' => 'MyChosenPassword1',
+            ])
+            ->assertHasNoActionErrors();
+
+        $group = PpskGroup::query()->sole();
+
+        $this->assertSame('MyChosenPassword1', Crypt::decryptString($group->password_hash));
+        $this->assertDatabaseHas('radcheck', [
+            'username' => $group->radius_username,
+            'attribute' => 'Cleartext-Password',
+            'value' => 'MyChosenPassword1',
+        ]);
+    }
+
+    public function test_create_flow_rejects_a_manual_password_outside_the_psk_length_boundary(): void
+    {
+        Livewire::test(ListPpskGroups::class)
+            ->callAction('create', data: [
+                'label' => 'VLAN300_TESTA',
+                'vlan_id' => 300,
+                'enabled' => true,
+                'password_source' => 'manual',
+                'manual_password' => 'short',
+            ])
+            ->assertHasActionErrors(['manual_password']);
+
+        $this->assertSame(0, PpskGroup::query()->count());
     }
 
     public function test_list_page_shows_created_groups(): void
@@ -92,14 +137,44 @@ class PpskGroupResourceTest extends TestCase
     {
         $group = PpskGroup::factory()->create(['vlan_id' => 300]);
 
-        Livewire::test(EditPpskGroup::class, ['record' => $group->getRouteKey()])
-            ->fillForm(['label' => 'VLAN302_RENAMED', 'vlan_id' => 302])
-            ->call('save')
-            ->assertHasNoFormErrors();
+        Livewire::test(ListPpskGroups::class)
+            ->callTableAction('edit', $group, data: ['label' => 'VLAN302_RENAMED', 'vlan_id' => 302])
+            ->assertHasNoTableActionErrors();
 
         $group->refresh();
 
         $this->assertSame('VLAN302_RENAMED', $group->label);
         $this->assertSame('10.30.2.0/24', $group->subnet);
+    }
+
+    public function test_regenerate_password_action_issues_a_new_credential(): void
+    {
+        $group = PpskGroup::factory()->create();
+        $originalHash = $group->password_hash;
+
+        Livewire::test(ListPpskGroups::class)
+            ->callTableAction('regeneratePassword', $group, data: ['password_source' => 'generate'])
+            ->assertHasNoTableActionErrors();
+
+        $group->refresh();
+
+        $this->assertNotSame($originalHash, $group->password_hash);
+        $this->assertDatabaseHas('admin_log', ['action' => 'ppsk_password_regenerated', 'target_ppsk_id' => $group->id]);
+    }
+
+    public function test_regenerate_password_action_with_manual_password_uses_the_supplied_value(): void
+    {
+        $group = PpskGroup::factory()->create();
+
+        Livewire::test(ListPpskGroups::class)
+            ->callTableAction('regeneratePassword', $group, data: [
+                'password_source' => 'manual',
+                'manual_password' => 'AnotherChosenPassword2',
+            ])
+            ->assertHasNoTableActionErrors();
+
+        $group->refresh();
+
+        $this->assertSame('AnotherChosenPassword2', Crypt::decryptString($group->password_hash));
     }
 }

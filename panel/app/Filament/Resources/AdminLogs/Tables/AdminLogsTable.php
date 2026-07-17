@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources\AdminLogs\Tables;
 
 use App\Enums\AdminLogAction;
+use Carbon\CarbonInterface;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -25,14 +26,17 @@ class AdminLogsTable
             ->columns([
                 TextColumn::make('ts')
                     ->label('When')
-                    ->dateTime()
+                    ->dateTime('M j, Y H:i')
+                    ->description(fn (CarbonInterface $state): string => $state->diffForHumans())
                     ->sortable(),
                 TextColumn::make('action')
                     ->badge()
+                    ->icon(fn (string $state): string => AdminLogAction::tryFrom($state)?->icon() ?? 'heroicon-o-question-mark-circle')
                     ->formatStateUsing(fn (string $state): string => AdminLogAction::tryFrom($state)?->label() ?? $state)
                     ->color(fn (string $state): string => AdminLogAction::tryFrom($state)?->color() ?? 'gray'),
                 TextColumn::make('admin_user')
                     ->label('Admin')
+                    ->icon('heroicon-o-user-circle')
                     ->placeholder('-')
                     ->searchable(),
                 TextColumn::make('detail')

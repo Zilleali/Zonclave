@@ -42,4 +42,21 @@ enum AdminLogAction: string
             default => 'success',
         };
     }
+
+    // Icon per action, so the list reads at a glance (Sancover UX request
+    // 2026-07-17, admin log visual clarity pass) - purely cosmetic, no new
+    // data or behavior.
+    public function icon(): string
+    {
+        return match ($this) {
+            self::AdminLoginSuccess => 'heroicon-o-arrow-right-on-rectangle',
+            self::AdminLoginFailed => 'heroicon-o-lock-closed',
+            self::PpskCreated => 'heroicon-o-plus-circle',
+            self::PpskUpdated => 'heroicon-o-pencil-square',
+            self::PpskEnabled => 'heroicon-o-play-circle',
+            self::PpskDisabled => 'heroicon-o-pause-circle',
+            self::PpskDeleted => 'heroicon-o-trash',
+            self::PpskPasswordRegenerated => 'heroicon-o-arrow-path',
+        };
+    }
 }

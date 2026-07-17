@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Filament\Resources\PpskGroups\Tables;
 
 use App\Enums\PpskStatus;
+use App\Filament\Resources\PpskGroups\Schemas\PpskGroupForm;
+use App\Filament\Support\PskRevealNotification;
 use App\Models\PpskGroup;
 use App\Services\PpskService;
 use Filament\Actions\Action;
@@ -19,6 +21,9 @@ use Filament\Tables\Table;
 // Phase 1: no live connection status, no polling, on-demand loads only
 // (Section 23.3). Every mutation goes through PpskService; there are no
 // bulk actions on purpose, so nothing can bypass the Section 23.1 path.
+// Edit is a modal row action, not a dedicated page (Sancover UX request
+// 2026-07-17, see CLAUDE.md Section 16.3) - PpskGroupResource::getPages()
+// registers no 'edit' route, so EditAction renders as a modal by default.
 class PpskGroupsTable
 {
     public static function configure(Table $table): Table
@@ -26,7 +31,11 @@ class PpskGroupsTable
         return $table
             ->columns([
                 TextColumn::make('label')->searchable()->sortable(),
-                TextColumn::make('radius_username')->label('RADIUS username'),
+                TextColumn::make('radius_username')
+                    ->label('RADIUS username')
+                    ->copyable()
+                    ->copyMessage('RADIUS username copied')
+                    ->copyMessageDuration(2000),
                 TextColumn::make('vlan_id')->label('VLAN')->sortable(),
                 TextColumn::make('wireguard_interface')->label('WireGuard tunnel'),
                 TextColumn::make('status')
@@ -51,7 +60,16 @@ class PpskGroupsTable
                     )->all()),
             ])
             ->recordActions([
-                EditAction::make(),
+                EditAction::make()
+                    ->schema(PpskGroupForm::labelAndVlanFields())
+                    ->using(function (PpskGroup $record, array $data): PpskGroup {
+                        return app(PpskService::class)->update(
+                            $record,
+                            (string) $data['label'],
+                            (int) $data['vlan_id'],
+                            Filament::auth()->user()?->getAttribute('email'),
+                        );
+                    }),
 
                 Action::make('toggleStatus')
                     ->label(fn (PpskGroup $record): string => $record->status === PpskStatus::Active ? 'Disable' : 'Enable')
@@ -67,6 +85,31 @@ class PpskGroupsTable
                         } else {
                             $service->enable($record, $admin);
                         }
+                    }),
+
+                Action::make('regeneratePassword')
+                    ->label('Regenerate password')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->schema(PpskGroupForm::passwordFields())
+                    ->modalDescription('The current Wi-Fi password stops working immediately. The new one is shown once.')
+                    ->action(function (PpskGroup $record, array $data): void {
+                        $manualPsk = ($data['password_source'] ?? 'generate') === 'manual'
+                            ? (string) ($data['manual_password'] ?? '')
+                            : null;
+
+                        $result = app(PpskService::class)->regeneratePassword(
+                            $record,
+                            Filament::auth()->user()?->getAttribute('email'),
+                            $manualPsk,
+                        );
+
+                        PskRevealNotification::make(
+                            'Password regenerated - credentials shown once',
+                            'New Wi-Fi credentials',
+                            $result['group'],
+                            $result['psk'],
+                        )->send();
                     }),
 
                 DeleteAction::make()

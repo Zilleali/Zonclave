@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\PpskGroups;
 
-use App\Filament\Resources\PpskGroups\Pages\CreatePpskGroup;
-use App\Filament\Resources\PpskGroups\Pages\EditPpskGroup;
 use App\Filament\Resources\PpskGroups\Pages\ListPpskGroups;
 use App\Filament\Resources\PpskGroups\Schemas\PpskGroupForm;
 use App\Filament\Resources\PpskGroups\Tables\PpskGroupsTable;
@@ -45,12 +43,13 @@ class PpskGroupResource extends Resource
         ];
     }
 
+    // Create and Edit are modal actions (ListPpskGroups header, PpskGroupsTable
+    // row action), not dedicated pages - Sancover UX request 2026-07-17,
+    // see CLAUDE.md Section 16.3. No 'create'/'edit' routes here on purpose.
     public static function getPages(): array
     {
         return [
             'index' => ListPpskGroups::route('/'),
-            'create' => CreatePpskGroup::route('/create'),
-            'edit' => EditPpskGroup::route('/{record}/edit'),
         ];
     }
 }

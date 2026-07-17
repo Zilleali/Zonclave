@@ -30,15 +30,20 @@ final class CopyToClipboardAction
 
     public static function make(string $value, string $label = 'Copy password'): Action
     {
-        return Action::make('copyToClipboard')
+        // Actions\Action requires a unique name per notification; slugging
+        // the label keeps the username and password buttons from colliding
+        // when both appear on the same PskRevealNotification.
+        return Action::make('copyToClipboard-'.str($label)->slug())
             ->label($label)
             ->icon('heroicon-o-clipboard-document')
             ->color('primary')
             ->button()
-            ->tooltip('Copy the generated Wi-Fi password to your clipboard')
+            ->tooltip($label)
             // Js::from() safely encodes $value for embedding in a JS string
-            // literal; $value is server-generated (PskGenerator), never
-            // raw user input, but this stays safe regardless.
+            // literal; $value is server-generated (PskGenerator) or, since
+            // manual password entry (Section 14) and the RADIUS username,
+            // still never raw client input at this point either way - this
+            // stays safe regardless.
             ->alpineClickHandler('window.'.self::JS_HANDLER.'('.Js::from($value).')');
     }
 }

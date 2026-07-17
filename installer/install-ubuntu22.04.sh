@@ -402,7 +402,11 @@ deploy_panel() {
     if grep -q "^${key}=" .env; then
       sed -i "s|^${key}=.*|${key}=${value}|" .env
     else
-      echo "${key}=${value}" >>.env
+      # A leading newline guarantees this lands on its own line even if
+      # .env doesn't already end in one - plain `echo ... >>.env` glues
+      # the new key onto the end of the previous line in that case,
+      # corrupting the file enough that Laravel can't parse it at all.
+      printf '\n%s=%s\n' "$key" "$value" >>.env
     fi
   }
   {

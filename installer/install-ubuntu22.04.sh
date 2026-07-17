@@ -39,6 +39,14 @@ fi
 PANEL_GIT_URL="${PANEL_GIT_URL:-}"
 PANEL_DIR="/opt/zonclave"
 
+if [ -z "${CLI_SCRIPT_SOURCE:-}" ]; then
+  if [ -f "${SCRIPT_DIR}/zonclave-update.sh" ]; then
+    CLI_SCRIPT_SOURCE="${SCRIPT_DIR}/zonclave-update.sh"
+  else
+    CLI_SCRIPT_SOURCE="${SCRIPT_DIR}/../scripts/zonclave-update.sh"
+  fi
+fi
+
 DB_NAME="${DB_NAME:-ppsk}"
 DB_USER="${DB_USER:-ppsk}"
 
@@ -373,7 +381,21 @@ deploy_panel() {
     fi
   elif [ -d "$PANEL_SOURCE" ]; then
     mkdir -p "$PANEL_DIR"
+    # cp -a would also overwrite an existing served .env with whatever
+    # .env (if any) sits in PANEL_SOURCE - a stale dev leftover there is
+    # exactly what corrupted production config in the incident behind
+    # CLAUDE.md Section 26.7. Back up a pre-existing .env and restore it
+    # after the copy so a re-run can never clobber it.
+    local env_backup=""
+    if [ -f "${PANEL_DIR}/.env" ]; then
+      env_backup="$(mktemp)"
+      cp "${PANEL_DIR}/.env" "$env_backup"
+    fi
     cp -a "${PANEL_SOURCE}/." "$PANEL_DIR/"
+    if [ -n "$env_backup" ]; then
+      cp "$env_backup" "${PANEL_DIR}/.env"
+      rm -f "$env_backup"
+    fi
   else
     warn "Panel source not found (PANEL_SOURCE=${PANEL_SOURCE}, PANEL_GIT_URL unset)."
     warn "Skipping panel deploy. Database and FreeRADIUS are fully provisioned."
@@ -502,7 +524,23 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# 10. Self-check
+# 10. Operational CLI (zonclave update)
+# ---------------------------------------------------------------------------
+install_cli() {
+  step "Installing the zonclave CLI"
+
+  if [ ! -f "$CLI_SCRIPT_SOURCE" ]; then
+    warn "zonclave-update.sh not found (looked at ${CLI_SCRIPT_SOURCE}); skipping."
+    return 0
+  fi
+
+  cp "$CLI_SCRIPT_SOURCE" /usr/local/bin/zonclave
+  chmod 755 /usr/local/bin/zonclave
+  ok "Installed 'zonclave update' (/usr/local/bin/zonclave)."
+}
+
+# ---------------------------------------------------------------------------
+# 11. Self-check
 # ---------------------------------------------------------------------------
 self_check() {
   step "Self-check"
@@ -594,6 +632,12 @@ EOF
   echo    "     per CLAUDE.md Sections 9 to 12 (fail-closed, no WAN fallback)."
   echo    "  4. Run the Section 21 acceptance tests end to end."
   echo
+  if [ -x /usr/local/bin/zonclave ]; then
+    echo "Future code updates: sudo zonclave update"
+    echo "  (pulls the latest code, redeploys, migrates, clears caches - does"
+    echo "   not touch the database, FreeRADIUS, or secrets)"
+    echo
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -617,6 +661,7 @@ main() {
   install_freeradius
   deploy_panel
   configure_services
+  install_cli
   self_check
   summary
 }

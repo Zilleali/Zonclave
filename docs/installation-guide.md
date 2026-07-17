@@ -107,6 +107,16 @@ sudo bash run.sh
 
 This is tamper-friction and casual protection of the install method, not a secrecy guarantee - anyone with root on the target can recover the decrypted installer at runtime regardless. See CLAUDE.md Section 24.5.
 
+### Updating a running deployment
+
+Once installed, don't re-run the full installer for a simple code change - it regenerates `DB_PASSWORD` and `RADIUS_SECRET` on every run, which can desync Postgres/FreeRADIUS/the printed summary if the run doesn't complete cleanly. Use the operational CLI instead:
+
+```sh
+sudo zonclave update
+```
+
+Pulls the latest code, resyncs it to the served copy, runs migrations, and clears/rebuilds all caches - without touching the database, FreeRADIUS config, or any secret. Installed automatically by the installer (`install_cli` stage); see CLAUDE.md Section 26.8 for what it does under the hood.
+
 ### What the installer does NOT do
 
 It configures the auth + panel node only. It does not touch OPNsense or UniFi - those are separate appliances, and Phase 1 leaves that configuration manual (Section 24.2). That's what Section 6 below is for.

@@ -87,10 +87,13 @@ git -C "$REPO_ROOT" archive HEAD -- panel \
   | tar -x -C "${STAGE_DIR}/zonclave"
 git -C "$REPO_ROOT" archive HEAD -- scripts/zonclave-update.sh \
   | tar -x -C "${STAGE_DIR}/zonclave" --strip-components=1
+git -C "$REPO_ROOT" archive HEAD -- docs \
+  | tar -x -C "${STAGE_DIR}/zonclave"
 
 [ -f "${STAGE_DIR}/zonclave/install-ubuntu22.04.sh" ] || die "install-ubuntu22.04.sh missing from HEAD; nothing to package."
 [ -d "${STAGE_DIR}/zonclave/panel" ] || die "panel/ missing from HEAD; nothing to package."
 [ -f "${STAGE_DIR}/zonclave/zonclave-update.sh" ] || warn "scripts/zonclave-update.sh missing from HEAD; packaging without the 'zonclave update' CLI."
+[ -d "${STAGE_DIR}/zonclave/docs" ] || warn "docs/ missing from HEAD; the public /docs pages won't render until it's present."
 
 if [ -f "${STAGE_DIR}/zonclave/panel/.env" ]; then
   die "Refusing to package: a tracked .env exists in panel/. Aborting for safety."

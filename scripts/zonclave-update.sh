@@ -22,6 +22,8 @@ set -euo pipefail
 readonly REPO_DIR="/var/www/Zonclave"
 readonly PANEL_SOURCE="${REPO_DIR}/panel"
 readonly PANEL_DIR="/opt/zonclave"
+readonly DOCS_SOURCE="${REPO_DIR}/docs"
+readonly DOCS_DIR="/opt/docs"
 readonly LOG_FILE="/var/log/zonclave-update.log"
 
 C_RESET="\033[0m"; C_BLUE="\033[1;34m"; C_GREEN="\033[1;32m"; C_RED="\033[1;31m"
@@ -66,6 +68,16 @@ cmd_update() {
   cp -a "${PANEL_SOURCE}/." "$PANEL_DIR/"
   cp "$env_backup" "${PANEL_DIR}/.env"
   rm -f "$env_backup"
+
+  log "Syncing docs for the public /docs pages"
+  # Same sibling-of-PANEL_DIR relationship the installer's deploy_docs()
+  # sets up (App\Support\DocsMarkdownRenderer resolves docs/ this way -
+  # config('zonclave.docs_path') defaults to base_path('../docs')).
+  if [ -d "$DOCS_SOURCE" ]; then
+    mkdir -p "$DOCS_DIR"
+    cp -a "${DOCS_SOURCE}/." "$DOCS_DIR/"
+    chown -R www-data:www-data "$DOCS_DIR"
+  fi
 
   cd "$PANEL_DIR"
 

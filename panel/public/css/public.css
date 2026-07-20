@@ -604,12 +604,18 @@ img, svg {
     margin: 1rem 0 0;
 }
 
-.doc-body ul {
+.doc-body ul,
+.doc-body ol {
     margin: 1rem 0 0;
     padding-left: 1.5rem;
 }
 
 .doc-body li {
+    margin-top: 0.5rem;
+}
+
+.doc-body li > ul,
+.doc-body li > ol {
     margin-top: 0.5rem;
 }
 
@@ -619,6 +625,16 @@ img, svg {
 
 .doc-body strong {
     color: var(--text-strong);
+}
+
+.doc-body a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
+.doc-body a:hover {
+    color: #7dd3fc;
 }
 
 .doc-body code {

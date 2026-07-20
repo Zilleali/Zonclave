@@ -47,6 +47,20 @@ if [ -z "${CLI_SCRIPT_SOURCE:-}" ]; then
   fi
 fi
 
+# The public /docs pages render docs/*.md live (App\Support\DocsMarkdownRenderer,
+# 2026-07-18) rather than a hand-copied blade view - the panel's own
+# base_path('../docs') default expects docs/ as a sibling of PANEL_DIR, so
+# it lands at DOCS_DIR here, the same sibling relationship docs/ and panel/
+# already have in the git checkout.
+if [ -z "${DOCS_SOURCE:-}" ]; then
+  if [ -d "${SCRIPT_DIR}/docs" ]; then
+    DOCS_SOURCE="${SCRIPT_DIR}/docs"
+  else
+    DOCS_SOURCE="${SCRIPT_DIR}/../docs"
+  fi
+fi
+DOCS_DIR="/opt/docs"
+
 DB_NAME="${DB_NAME:-ppsk}"
 DB_USER="${DB_USER:-ppsk}"
 
@@ -488,6 +502,20 @@ deploy_panel() {
   ok "Panel deployed at ${PANEL_DIR}."
 }
 
+deploy_docs() {
+  step "Syncing docs for the public /docs pages"
+
+  if [ ! -d "$DOCS_SOURCE" ]; then
+    warn "Docs source not found (DOCS_SOURCE=${DOCS_SOURCE}); the public /docs pages will fail to render until docs/ exists at ${DOCS_DIR}."
+    return 0
+  fi
+
+  mkdir -p "$DOCS_DIR"
+  cp -a "${DOCS_SOURCE}/." "$DOCS_DIR/"
+  chown -R www-data:www-data "$DOCS_DIR"
+  ok "Docs synced to ${DOCS_DIR}."
+}
+
 create_admin_user() {
   # ADMIN_CREATED tracks whether this run actually set the admin's
   # password, so summary() knows whether ADMIN_PASSWORD is real (a
@@ -714,6 +742,7 @@ main() {
   install_db
   install_freeradius
   deploy_panel
+  deploy_docs
   configure_services
   install_cli
   self_check

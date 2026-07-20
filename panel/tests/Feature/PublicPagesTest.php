@@ -51,18 +51,27 @@ class PublicPagesTest extends TestCase
         // Section 20/25.3-style guardrail: this deployment's real site
         // detail is deliberately published on /docs/site-configuration and
         // /docs/troubleshooting (client decision, recorded in CLAUDE.md
-        // Section 20). What must still never happen is a link out to the
-        // source repository or to the raw runbook file itself - the public
-        // pages transcribe the content, they don't expose the repo.
+        // Section 20). What must still never happen is a clickable link out
+        // to the source repository or to the raw runbook file itself - the
+        // public pages transcribe the content, they don't expose the repo.
+        // A plain-text mention (e.g. installation-guide.md's own prose
+        // naming the runbook, same as it already names CLAUDE.md elsewhere)
+        // is fine - App\Support\DocsMarkdownRenderer strips the href but
+        // intentionally leaves the surrounding sentence readable.
         foreach ([
             '/', '/docs', '/docs/installation-guide', '/docs/commands-reference',
             '/docs/opnsense-configuration', '/docs/site-configuration', '/docs/troubleshooting',
         ] as $url) {
             $html = $this->get($url)->getContent();
-
             $this->assertIsString($html);
-            $this->assertStringNotContainsString('github.com', $html);
-            $this->assertStringNotContainsString('runbook/phase1-opnsense-unifi', $html);
+
+            preg_match_all('/href="([^"]*)"/', $html, $matches);
+            $hrefs = $matches[1];
+
+            foreach ($hrefs as $href) {
+                $this->assertStringNotContainsString('github.com', $href, "{$url} links to github.com ({$href})");
+                $this->assertStringNotContainsString('runbook/', $href, "{$url} links to the raw runbook file ({$href})");
+            }
         }
     }
 }

@@ -15,4 +15,12 @@ return [
     // Subnet formula: 10.30.X.0/24 where X = VLAN - 300.
     'vlan_base' => 300,
     'subnet_template' => '10.30.%d.0/24',
+
+    // Where the repo's docs/ directory lives relative to this app, for the
+    // public /docs pages to render live (see App\Support\DocsMarkdownRenderer).
+    // In a git checkout, panel/ and docs/ are siblings. In production,
+    // deploy_panel() and zonclave-update.sh copy docs/ to a sibling of
+    // /opt/zonclave (/opt/docs) so this same relative path resolves in
+    // both places without an environment-specific branch.
+    'docs_path' => env('ZONCLAVE_DOCS_PATH', base_path('../docs')),
 ];

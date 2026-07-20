@@ -146,6 +146,118 @@
         }
     }
 
+    /* Network topology widget: a static org-chart-style diagram, not a
+       live device map (Section 13 - real tunnel/device health stays a
+       Phase 2 OPNsense/UniFi API integration). */
+    .zc-topology {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-block: 1rem;
+    }
+
+    .zc-topo-node {
+        background-color: var(--zc-surface-hover);
+        border: 1px solid var(--zc-border);
+        border-radius: var(--zc-radius-md);
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        color: white;
+        text-align: center;
+    }
+
+    .zc-topo-line--vertical {
+        width: 2px;
+        height: 1.5rem;
+        background-color: var(--zc-border);
+    }
+
+    .zc-topo-line--short {
+        height: 1rem;
+    }
+
+    .zc-topo-branches {
+        position: relative;
+        display: flex;
+        justify-content: center;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        width: 100%;
+        margin-top: 0;
+    }
+
+    .zc-topo-branches::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 12%;
+        right: 12%;
+        height: 2px;
+        background-color: var(--zc-border);
+    }
+
+    .zc-topo-branch {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .zc-topo-node--vlan {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        min-width: 10rem;
+        text-decoration: none;
+        transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .zc-topo-node--vlan:hover {
+        border-color: var(--fi-color-primary-400, #38bdf8);
+        transform: translateY(-2px);
+    }
+
+    .zc-topo-vlan-id {
+        font-size: 0.9375rem;
+        font-weight: 700;
+        color: var(--fi-color-primary-400, #38bdf8);
+    }
+
+    .zc-topo-vlan-detail {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.6);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .zc-topo-vlan-counts {
+        margin-top: 0.375rem;
+        display: flex;
+        gap: 0.25rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .zc-topo-badge {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        padding: 0.125rem 0.5rem;
+        border-radius: 999px;
+    }
+
+    .zc-topo-badge--active {
+        background-color: rgba(34, 197, 94, 0.15);
+        color: #4ade80;
+    }
+
+    .zc-topo-badge--disabled {
+        background-color: rgba(148, 163, 184, 0.15);
+        color: #94a3b8;
+    }
+
+    .zc-topo-badge--empty {
+        background-color: rgba(148, 163, 184, 0.08);
+        color: rgba(255, 255, 255, 0.4);
+    }
+
     @media (prefers-reduced-motion: reduce) {
 
         .fi-section,
@@ -154,7 +266,8 @@
         .fi-icon-btn,
         .fi-ta-row,
         .fi-sidebar-item-btn,
-        .fi-main {
+        .fi-main,
+        .zc-topo-node--vlan {
             animation: none;
             transition: none;
         }

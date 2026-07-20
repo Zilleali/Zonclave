@@ -31,10 +31,14 @@ class ListPpskGroups extends ListRecords
                     ...PpskGroupForm::labelAndVlanFields(),
                     ...PpskGroupForm::enabledField(),
                     ...PpskGroupForm::passwordFields(),
+                    ...PpskGroupForm::usernameFields(),
                 ])
                 ->using(function (array $data): PpskGroup {
                     $manualPsk = ($data['password_source'] ?? 'generate') === 'manual'
                         ? (string) ($data['manual_password'] ?? '')
+                        : null;
+                    $manualUsername = ($data['username_source'] ?? 'generate') === 'manual'
+                        ? (string) ($data['manual_username'] ?? '')
                         : null;
 
                     $result = app(PpskService::class)->create(
@@ -43,6 +47,7 @@ class ListPpskGroups extends ListRecords
                         (bool) ($data['enabled'] ?? true),
                         Filament::auth()->user()?->getAttribute('email'),
                         $manualPsk,
+                        $manualUsername,
                     );
 
                     PskRevealNotification::make(

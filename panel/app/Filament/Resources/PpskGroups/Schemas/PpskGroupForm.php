@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources\PpskGroups\Schemas;
 
 use App\Domain\Psk;
+use App\Domain\RadiusUsername;
 use App\Domain\VlanPlan;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
@@ -97,6 +98,45 @@ class PpskGroupForm
                 ->helperText(sprintf('%d to %d characters (WPA2 personal PSK constraint, Section 14).', Psk::MIN_LENGTH, Psk::MAX_LENGTH))
                 ->requiredIf('password_source', 'manual')
                 ->visible(fn (Get $get): bool => $get('password_source') === 'manual'),
+        ];
+    }
+
+    /**
+     * The RADIUS username choice, create-only - a group's username is fixed
+     * once it exists (there is no "regenerate username" action, unlike the
+     * password, since a live username change would break any device already
+     * paired against it). Auto-generate (ppsk_group###) by default, with
+     * manual entry as an explicit opt-in (Section 6, decision reversed
+     * 2026-07-18, client request) for cases like a client-supplied naming
+     * scheme. Either way the value goes through RadiusUsername::fromString()
+     * (format) and this field's own ->unique() rule (Section 7's UNIQUE
+     * NOT NULL constraint, surfaced as a form error instead of a raw query
+     * exception) before PpskService ever persists it.
+     *
+     * @return array<int, Radio|TextInput>
+     */
+    public static function usernameFields(): array
+    {
+        return [
+            Radio::make('username_source')
+                ->label('RADIUS username')
+                ->options([
+                    'generate' => 'Auto-generate (recommended)',
+                    'manual' => 'Enter manually',
+                ])
+                ->default('generate')
+                ->inline()
+                ->live(),
+
+            TextInput::make('manual_username')
+                ->label('Username')
+                ->minLength(RadiusUsername::MIN_LENGTH)
+                ->maxLength(RadiusUsername::MAX_LENGTH)
+                ->regex('/^[A-Za-z0-9_-]+$/')
+                ->unique(table: 'ppsk_groups', column: 'radius_username')
+                ->helperText(sprintf('%d to %d characters: letters, numbers, underscores, and hyphens only.', RadiusUsername::MIN_LENGTH, RadiusUsername::MAX_LENGTH))
+                ->requiredIf('username_source', 'manual')
+                ->visible(fn (Get $get): bool => $get('username_source') === 'manual'),
         ];
     }
 }

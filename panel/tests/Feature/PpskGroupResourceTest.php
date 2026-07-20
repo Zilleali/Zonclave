@@ -37,6 +37,7 @@ class PpskGroupResourceTest extends TestCase
                 'vlan_id' => 300,
                 'enabled' => true,
                 'password_source' => 'generate',
+                'username_source' => 'generate',
             ])
             ->assertHasNoActionErrors();
 
@@ -55,6 +56,7 @@ class PpskGroupResourceTest extends TestCase
                 'vlan_id' => 305,
                 'enabled' => true,
                 'password_source' => 'generate',
+                'username_source' => 'generate',
             ])
             ->assertHasActionErrors(['vlan_id']);
     }
@@ -94,6 +96,59 @@ class PpskGroupResourceTest extends TestCase
             ->assertHasActionErrors(['manual_password']);
 
         $this->assertSame(0, PpskGroup::query()->count());
+    }
+
+    public function test_create_flow_with_manual_username_uses_the_supplied_value(): void
+    {
+        Livewire::test(ListPpskGroups::class)
+            ->callAction('create', data: [
+                'label' => 'VLAN301_SANCOUK1',
+                'vlan_id' => 301,
+                'enabled' => true,
+                'password_source' => 'generate',
+                'username_source' => 'manual',
+                'manual_username' => 'SancoUk1',
+            ])
+            ->assertHasNoActionErrors();
+
+        $group = PpskGroup::query()->sole();
+
+        $this->assertSame('SancoUk1', $group->radius_username);
+        $this->assertDatabaseHas('radcheck', ['username' => 'SancoUk1']);
+    }
+
+    public function test_create_flow_rejects_a_manual_username_outside_the_format_boundary(): void
+    {
+        Livewire::test(ListPpskGroups::class)
+            ->callAction('create', data: [
+                'label' => 'VLAN301_TESTA',
+                'vlan_id' => 301,
+                'enabled' => true,
+                'password_source' => 'generate',
+                'username_source' => 'manual',
+                'manual_username' => 'has a space',
+            ])
+            ->assertHasActionErrors(['manual_username']);
+
+        $this->assertSame(0, PpskGroup::query()->count());
+    }
+
+    public function test_create_flow_rejects_a_manual_username_already_taken(): void
+    {
+        PpskGroup::factory()->create(['radius_username' => 'SancoUk1']);
+
+        Livewire::test(ListPpskGroups::class)
+            ->callAction('create', data: [
+                'label' => 'VLAN302_SANCOUK1DUP',
+                'vlan_id' => 302,
+                'enabled' => true,
+                'password_source' => 'generate',
+                'username_source' => 'manual',
+                'manual_username' => 'SancoUk1',
+            ])
+            ->assertHasActionErrors(['manual_username']);
+
+        $this->assertSame(1, PpskGroup::query()->count());
     }
 
     public function test_list_page_shows_created_groups(): void

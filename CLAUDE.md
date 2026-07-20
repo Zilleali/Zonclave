@@ -204,7 +204,7 @@ Descriptive, self-documenting names are non-negotiable at this scale. Six months
 | WireGuard interface name | `WG_VLAN<id>` | `WG_VLAN300` |
 | WireGuard gateway name (OPNsense) | `GW_WG_VLAN<id>` | `GW_WG_VLAN300` |
 | PPSK / group label | `VLAN<id>_<GroupName>` | `VLAN300_GUESTA`, `VLAN301_GROUPB` |
-| RADIUS username | `ppsk_group###` (zero-padded, matches `ppsk_groups.id`) | `ppsk_group001` |
+| RADIUS username | `ppsk_group###` (zero-padded, matches `ppsk_groups.id`) by default | `ppsk_group001` |
 | Firewall rule (allow) | `ALLOW_VLAN<id>_TO_<gateway>` | `ALLOW_VLAN300_TO_GW_WG_VLAN300` |
 | Firewall rule (block) | `BLOCK_VLAN<id>_TO_RFC1918` | `BLOCK_VLAN300_TO_RFC1918` |
 | Firewall alias (per VLAN subnet) | `NET_VLAN<id>` | `NET_VLAN300` |
@@ -212,6 +212,8 @@ Descriptive, self-documenting names are non-negotiable at this scale. Six months
 | OPNsense VLAN interface | `igb<n>_vlan<id>` | `igb0_vlan300`, `igb0_vlan205` |
 
 Apply this consistently across OPNsense interface descriptions, gateway names, firewall rules and aliases, and the `ppsk_groups` table. The names should match across all of them so a search for `VLAN300` in any system surfaces everything related to it.
+
+**RADIUS username manual entry (decision recorded 2026-07-18, client request from Sancover):** auto-generate (`ppsk_group###`) remains the default, but manual entry is now an explicit opt-in on the Create form, same pattern as the Section 14 password reversal - needed for the client's own naming scheme (e.g. `SancoUk1`, `SancoUk2`) rather than the sequential internal convention. Create-only: there is no "change username" action after creation, since an existing device is already paired against whatever username it authenticated with - fixing a mistake means delete and recreate, not edit. Every manual value passes through `App\Domain\RadiusUsername` (3 to 64 characters, letters/numbers/underscore/hyphen only) and a uniqueness check against `ppsk_groups.radius_username` before it is ever persisted.
 
 ## 7. Configuration Registry - Authoritative Inventory
 
@@ -435,6 +437,7 @@ Whichever stack is chosen, it reads and writes `ppsk_groups` as the source of tr
 Fields:
 
 - Label (free text, human-friendly name, follows the `VLAN<id>_<GroupName>` convention from Section 6)
+- RADIUS username: **auto-generate (default) or enter manually**, per Section 6 (create-only choice, decision recorded 2026-07-18). Manual entry still passes through `RadiusUsername` validation (3-64 chars, letters/numbers/underscore/hyphen) and a uniqueness check before it is persisted.
 - Password: **auto-generate (default) or enter manually**, per Section 14 (a choice, not generate-only as originally decided; either way shown once on creation with a "copy" action). Manual entry still passes through the Section 14 validation boundary (8-63 chars).
 - VLAN ID: dropdown populated from the pre-provisioned VLAN list (Phase 1: 5 to 10 options)
 - WireGuard tunnel: dropdown populated from pre-provisioned tunnels, 1:1 matched to VLAN choice (selecting a VLAN auto-selects its paired tunnel, since they are fixed 1:1 in this design)

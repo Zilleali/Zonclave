@@ -257,12 +257,70 @@ configured, before wiring a PPSK to it.
 
 - Interface: `WG_VLAN300`
 - Name: `GW_WG_VLAN300`
-- Gateway IP: the WireGuard peer's tunnel-side address (not `0.0.0.0`;
-  OPNsense needs a monitorable target - use the provider's tunnel gateway
-  IP if they publish one, or the peer's tunnel address itself)
+- Gateway IP: an in-tunnel address that is **not** this box's own tunnel
+  address - use the provider's inner-network gateway/DNS IP if they
+  publish one (e.g. `10.10.20.1` at Kelder), or a distinct dummy in-tunnel
+  address per gateway. See the critical finding below - getting this field
+  wrong produces the single most confusing failure mode in the whole
+  project.
+- **Far Gateway: checked** (the address is not on a directly attached
+  network; on a point-to-point tunnel this is what makes any non-local
+  next-hop valid).
 - **Disable Gateway Monitoring only if the provider has no in-tunnel IP to
   ping.** If monitoring can be enabled, do so - Section 12's fail-closed
   behavior depends on OPNsense knowing the gateway is down.
+
+**Critical real-world finding, 2026-07-22 (cost a full day of debugging):
+the Gateway IP must never be the WireGuard interface's own tunnel
+address.** At Kelder, all four gateways had been built with Gateway IP set
+to each tunnel's own local address (e.g. `GW_WG_VLAN300` = `10.20.0.183`,
+the same address assigned to `wg1` itself). pf's `route-to` then resolves
+the next-hop to the firewall itself and short-circuits the packet locally
+instead of pushing it into the tunnel. The resulting symptoms are
+spectacularly misleading:
+
+- HTTPS requests from a VLAN client to **any** destination IP were
+  answered by OPNsense's **own web GUI** (login page, or the DNS-rebind
+  error page when a hostname was involved) - looking exactly like some
+  hidden port-forward or captive portal, of which there was none.
+- DNS redirect states showed `NO_TRAFFIC` (queries forwarded to the
+  provider's resolver, no reply ever returned).
+- After partial fixes, the symptom shifted to plain timeouts: pf created
+  the state (`SYN_SENT`), but `tcpdump -n -i wg1` showed the packet
+  **never entered the tunnel at all**.
+- Meanwhile everything *looked* healthy: live handshake in `wg show`,
+  gateway **Online** in Status, correct rules in `pfctl -sr`. The gateway
+  monitor (dpinger) kept working throughout because it uses a kernel host
+  route, not pf `route-to` - so it never hits this trap. Monitor traffic
+  passing is **not** evidence that client traffic passes.
+
+**Fix (per gateway):** set Gateway IP to a non-local in-tunnel address
+with Far Gateway checked. Kelder's working values:
+
+| Gateway | Gateway IP | Monitor IP |
+| --- | --- | --- |
+| GW_WG_VLAN300 | 10.10.20.1 | 8.8.8.8 |
+| GW_WG_VLAN301 | 10.10.20.2 | 8.8.4.4 |
+| GW_WG_VLAN302 | 10.10.20.3 | 9.9.9.9 |
+| GW_WG_VLAN303 | 10.10.20.4 | 149.112.112.112 |
+
+On a point-to-point tunnel the exact next-hop value is irrelevant to
+packet delivery (the interface itself defines the path); it only has to be
+distinct per gateway (so the GUI accepts it) and **not local to the box**.
+Monitor IPs must each be unique across gateways - OPNsense installs a host
+route per monitor target.
+
+**The one test that proves it:** from a client on the VLAN, run a request
+while capturing on the tunnel:
+
+```sh
+tcpdump -n -i wg1 host 1.1.1.1
+```
+
+A correctly built gateway shows the client's NAT'd SYN leaving
+(`10.20.0.x > 1.1.1.1.443`) *and* the SYN-ACK returning. If pf has a state
+for the connection but nothing appears in this capture, the next-hop is
+short-circuiting locally - recheck this section.
 
 **Real-world finding, 2026-07-17:** on the actual Kelder box, leaving
 **Monitor IP** at the WireGuard peer's own tunnel address (the same value
@@ -331,12 +389,25 @@ inherit it, but double check none was added by hand.
 Verify the compiled ruleset, not just the GUI list:
 
 ```sh
-pfctl -a 'filter/VLAN300' -sr
+pfctl -a '*' -sr | grep vlan300
 ```
+
+(The anchor-specific form `pfctl -a 'filter/VLAN300' -sr` fails with
+`DIOCGETRULES: Invalid argument` on the Kelder box's OPNsense version -
+the wildcard anchor dump above works everywhere. Found 2026-07-22.)
 
 Read it top to bottom and confirm the block rule and its exceptions
 genuinely precede the allow rule, exactly as intended - this is the one
 thing worth re-reading twice.
+
+**Real-world finding, 2026-07-22: check the Action field, not just the
+name.** At Kelder, VLAN301's `BLOCK_VLAN301_TO_RFC1918` rule had been
+created with action **Pass** instead of Block - the name said block, the
+icon and the compiled ruleset said pass, and VLAN301 clients could reach
+the entire RFC1918 space. The rule editor defaults to Pass, so this slip
+is easy to make when cloning the rule set per VLAN. In the compiled output
+above, the rule must read `block drop in quick ...`, not `pass in
+quick ...` - verify the verb itself for every VLAN.
 
 ### 3.4a Outbound NAT - required, easy to miss
 

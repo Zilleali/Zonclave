@@ -6,7 +6,7 @@
 **Status:** Phase 1 - In Progress (dev environment active)
 **Client:** Sancover
 **Developer & Network Engineer:** ZILL E ALI (Developer Zon)
-**Last updated:** 2026-07-16
+**Last updated:** 2026-07-22
 
 This file is the single source of truth for the project. Anyone picking up implementation work, human or AI-assisted, should read it in full before writing any config or code. Section numbers are stable. Do not renumber sections 1 to 22, since the kickoff prompt references them directly. Add new material as new trailing sections.
 
@@ -936,3 +936,67 @@ Routine code updates should still use `sudo zonclave update`
 (Section 26.8), which never touched credentials in the first place - this
 fix is defense in depth for the case where the full installer gets
 re-run anyway.
+
+### 26.10 VLANs 300-303 live with new provider configs - gateway next-hop bug and other findings (2026-07-22)
+
+The provider issued updated WireGuard peer configs for VLAN300-303 (four
+distinct endpoints `46.151.227.182/.213/.237/.252:31003`, one shared
+public key, new tunnel addresses `10.20.0.183/.214/.238/.253`). The
+configs included AmneziaWG obfuscation parameters (`Jc`, `Jmin`, `Jmax`,
+`S1`, `S2`, `H1`-`H4`) - **confirmed not required**: OPNsense's stock
+WireGuard connects and passes traffic with them omitted. VLAN301 was
+updated in place; VLAN302/303 were built fresh. During bring-up and the
+first multi-credential test (SancoUk1-4, client-named RADIUS usernames per
+Section 6), the following real issues were found and fixed:
+
+1. **The big one - gateway Gateway IP set to the tunnel's own address
+   broke all client traffic while looking completely healthy.** All four
+   `GW_WG_VLAN30x` gateways had Gateway IP set to their own interface's
+   tunnel address (e.g. `10.20.0.183` on `wg1` itself). pf's `route-to`
+   then resolved the next-hop to the firewall itself and delivered client
+   packets locally instead of into the tunnel. Symptoms: client HTTPS to
+   *any* IP answered by OPNsense's own web GUI (login page / DNS-rebind
+   page - indistinguishable from a rogue port-forward or captive portal,
+   neither of which existed); DNS redirect states stuck `NO_TRAFFIC`;
+   later plain timeouts with a pf state created but zero packets on the
+   tunnel in `tcpdump -n -i wg1`. Crucially, `wg show` handshakes stayed
+   live and gateway monitoring stayed Online throughout (dpinger uses a
+   kernel host route, not pf `route-to`, so it bypasses the bug) - so
+   every health indicator said "working" while no client packet ever
+   entered the tunnel. Fix: Gateway IP must be a **non-local** in-tunnel
+   address with Far Gateway checked - Kelder now uses `10.10.20.1/.2/.3/
+   .4` for VLAN300-303 with unique monitors `8.8.8.8`, `8.8.4.4`,
+   `9.9.9.9`, `149.112.112.112`. Documented as a critical step in the
+   runbook (Section 3.3), including the `tcpdump -i wg1` proof test.
+2. **VLAN301's `BLOCK_VLAN301_TO_RFC1918` was created as action Pass**,
+   not Block - name said block, rule passed everything, so VLAN301
+   clients could reach all RFC1918 space (the exact Section 10 gap).
+   Fixed to Block. The rule editor defaults to Pass; the runbook
+   (Section 3.4) now says to verify the verb in the compiled ruleset.
+3. **VLAN302/303 gateways initially had the Monitor IP in the Gateway IP
+   field** (`8.8.8.8`/`8.8.4.4` as next-hop, no monitor at all). Fixed as
+   part of finding 1's table.
+4. **No DHCPv4 scopes existed for VLAN301-303** (only VLAN300 had one).
+   Added `10.30.1.10-200`, `10.30.2.10-200`, `10.30.3.10-200`, DNS and
+   gateway left blank (defaults to interface address, which the
+   DNS-through-tunnel redirect expects).
+5. **The UniFi RADIUS profile (`uk_ppsk`, renamed SSID `UK-PPSK`) had a
+   wrong shared secret** - FreeRADIUS dropped requests with "invalid
+   Message-Authenticator! (Shared secret is incorrect)" in `freeradius
+   -X`. Fixed by copying the exact secret from `clients.conf`'s
+   `ppsk_unifi` block.
+6. Diagnostic note for the future: `pfctl -a 'filter/VLAN300' -sr` (as
+   previously documented) fails with `DIOCGETRULES: Invalid argument` on
+   this OPNsense version - use `pfctl -a '*' -sr` instead. Also, a
+   dual-homed Windows test client binds source with `curl.exe
+   --interface <ip>`, but Windows may still route out the other NIC;
+   verifying with `pfctl -ss` that the state actually appears on OPNsense
+   is the reliable check.
+
+Confirmed working after all fixes (2026-07-22): all four gateways Online;
+a real client on `SancoUk1` (VLAN300, `10.30.0.11`) resolves DNS through
+the tunnel and egresses as `46.151.227.182` (the tunnel's residential IP,
+not the WAN). Section 21.1 tests 1-3 pass for VLAN300 with the new
+provider configs. Still open: same per-client verification for
+VLAN301-303 (SancoUk2-4), VLAN304 (still on the old single-tunnel plan -
+no updated peer config was issued for it), and Section 21.1 tests 5-10.

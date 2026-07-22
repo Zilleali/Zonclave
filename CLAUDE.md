@@ -1014,11 +1014,19 @@ Section 6), the following real issues were found and fixed:
    icmp` (origif must be the wg interface). Runbook Section 3.3 covers
    the verification.
 
-Confirmed working after all fixes: VLAN300 (`SancoUk1`, `10.30.0.11`)
-egresses as `46.151.227.182` and VLAN301 (`SancoUk2`, `10.30.1.10`)
-egresses as `46.151.227.213` - two distinct residential IPs from one
-SSID, DNS resolving through each tunnel. Section 21.1 tests 1-4 pass
-across those two VLANs. Still open: same per-client verification for
-VLAN302/303 (SancoUk3/4), the gateway monitor-route fix above (finding
-8), VLAN304 (no updated peer config was issued for it), and Section 21.1
-tests 5-10.
+Confirmed working after all fixes - **all four VLANs verified from real
+clients on the single `UK-PPSK` SSID (2026-07-22)**:
+
+| PPSK | VLAN | Egress (residential) |
+| --- | --- | --- |
+| SancoUk1 | 300 | 46.151.227.182 |
+| SancoUk2 | 301 | 46.151.227.213 |
+| SancoUk3 | 302 | 46.151.227.237 |
+| SancoUk4 | 303 | 46.151.227.252 |
+
+Four credentials, four VLANs, four distinct residential IPs, DNS
+resolving through each tunnel. Section 21.1 tests 1-4 pass for all four.
+Still open: the gateway monitor-route fix above (finding 8 - until done,
+Online status on GW_WG_VLAN301-303 is not measuring the tunnels and
+Section 12 fail-closed is blind for them), VLAN304 (no updated peer
+config was issued for it), and Section 21.1 tests 5-10.

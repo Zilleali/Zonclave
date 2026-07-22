@@ -992,11 +992,33 @@ Section 6), the following real issues were found and fixed:
    --interface <ip>`, but Windows may still route out the other NIC;
    verifying with `pfctl -ss` that the state actually appears on OPNsense
    is the reliable check.
+7. **VLAN301's DHCP scope had "Static ARP" ticked**, setting the kernel
+   `STATICARP` flag on `igb5_vlan301` - the router could receive from
+   clients but never ARP back to them, so every downstream packet (TCP
+   replies, DNS answers, ping) was silently discarded in the kernel's ARP
+   layer with nothing in any log; `ping <client>` from the box failed
+   with `sendto: Invalid argument`. Clients still got leases (broadcast
+   needs no ARP), making the VLAN look connected while nothing worked.
+   Diagnosed by comparing `ifconfig igb5_vlan301` (STATICARP present)
+   against working `igb5_vlan300` (absent). Fix: uncheck Static ARP in
+   the scope. Runbook Section 3.1 now warns about this.
+8. **Monitor host routes for GW_WG_VLAN301-303 were never installed**, so
+   dpinger's monitor pings followed the default route out the WAN
+   (proven: monitor ICMP state showed `origif: igb0`, NAT'd to the WAN
+   address) - gateway status showed Online while measuring nothing about
+   the tunnels, blinding Section 12's fail-closed. This also invalidated
+   firewall-sourced test traffic (`ping -S`/`nc -s` follow the kernel
+   table, not pf route-to, and silently "succeed" via WAN). Fix: ensure
+   Far Gateway is applied so the monitor route lands on the tunnel;
+   verify with `netstat -rn | grep <monitor-ip>` and `pfctl -ss | grep
+   icmp` (origif must be the wg interface). Runbook Section 3.3 covers
+   the verification.
 
-Confirmed working after all fixes (2026-07-22): all four gateways Online;
-a real client on `SancoUk1` (VLAN300, `10.30.0.11`) resolves DNS through
-the tunnel and egresses as `46.151.227.182` (the tunnel's residential IP,
-not the WAN). Section 21.1 tests 1-3 pass for VLAN300 with the new
-provider configs. Still open: same per-client verification for
-VLAN301-303 (SancoUk2-4), VLAN304 (still on the old single-tunnel plan -
-no updated peer config was issued for it), and Section 21.1 tests 5-10.
+Confirmed working after all fixes: VLAN300 (`SancoUk1`, `10.30.0.11`)
+egresses as `46.151.227.182` and VLAN301 (`SancoUk2`, `10.30.1.10`)
+egresses as `46.151.227.213` - two distinct residential IPs from one
+SSID, DNS resolving through each tunnel. Section 21.1 tests 1-4 pass
+across those two VLANs. Still open: same per-client verification for
+VLAN302/303 (SancoUk3/4), the gateway monitor-route fix above (finding
+8), VLAN304 (no updated peer config was issued for it), and Section 21.1
+tests 5-10.

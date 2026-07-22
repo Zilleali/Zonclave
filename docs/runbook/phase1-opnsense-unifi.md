@@ -205,7 +205,23 @@ Then **Interfaces > Assignments**, assign the new VLAN, name the assignment
 static IPv4 to the `.1` address of that subnet (e.g. `10.30.0.1/24` for
 VLAN 300), and enable the DHCP server for that interface's subnet
 (**Services > DHCPv4 > [VLAN300]**), range e.g. `10.30.0.10`-`10.30.0.200`,
-leaving `.1`-`.9` free for infrastructure.
+leaving `.1`-`.9` free for infrastructure. Leave DNS servers and Gateway
+blank in the scope (they default to the interface address, which the
+DNS-through-tunnel redirect in 3.6 expects).
+
+**Real-world finding, 2026-07-22: leave the DHCP scope's "Static ARP"
+checkbox unchecked.** It got ticked while creating VLAN301's scope at
+Kelder, and the failure mode is vicious: the interface gets the kernel
+`STATICARP` flag, which forbids dynamic ARP entirely - so the router can
+receive from clients but can never send anything back to them (no ARP
+resolution = every downstream packet silently discarded before it reaches
+the wire; `ping <client>` from OPNsense fails with `sendto: Invalid
+argument`). Clients still get DHCP leases (broadcast needs no ARP), so
+everything *looks* connected while literally no reply traffic - TCP,
+DNS, ping - can be delivered. Nothing logs the drops: pf passes the
+packets, they die in the kernel's ARP layer afterward. If a VLAN's
+clients get leases but nothing else, check `ifconfig <vlan-if>` for
+`STATICARP` in the flags before debugging anything deeper.
 
 Verify:
 
@@ -309,6 +325,28 @@ packet delivery (the interface itself defines the path); it only has to be
 distinct per gateway (so the GUI accepts it) and **not local to the box**.
 Monitor IPs must each be unique across gateways - OPNsense installs a host
 route per monitor target.
+
+**Companion finding, 2026-07-22: verify the monitor host routes actually
+exist, or gateway status is a lie.** If Far Gateway is not effectively
+applied (no interface route to the gateway IP gets installed), the
+monitor host route silently fails to install too - and dpinger's pings to
+the monitor IP then follow the **default route out the WAN**, get NAT'd to
+the WAN address, and succeed. The gateway shows Online while measuring
+nothing about the tunnel; Section 12's fail-closed behavior is then blind
+to a real tunnel failure. Caught at Kelder via the state table: the
+monitor ICMP state showed `origif: igb0` (WAN) instead of the tunnel
+interface. Verify after building each gateway:
+
+```sh
+netstat -rn | grep <monitor-ip>     # must route via the tunnel interface
+pfctl -ss | grep icmp               # monitor states: origif must be wgN, not the WAN NIC
+```
+
+This also poisons ad-hoc testing: `ping -S <tunnel-addr> <monitor-ip>` and
+`nc -s <tunnel-addr> ...` from the firewall follow the kernel routing
+table, not pf `route-to` - if the monitor route is missing they transparently
+go out the WAN and "succeed", proving nothing about the tunnel. Client
+traffic and `tcpdump -i wgN` are the only trustworthy end-to-end checks.
 
 **The one test that proves it:** from a client on the VLAN, run a request
 while capturing on the tunnel:

@@ -760,6 +760,15 @@ directly - but here is where each one lands against what you just built:
 | 9 | This doc's Section 3.6 (DNS-through-tunnel) |
 | 10 | Panel's Admin Log page - confirm every action from tests 1-6 has a row |
 
+**Test 5 note (behavior confirmed 2026-07-23):** disabling a PPSK blocks
+the *next* authentication - an already-connected device keeps its
+established WPA2 session until it disconnects or roams, because RADIUS is
+only consulted at association time. That is the specified behavior and
+test 5 passes on it (reconnect after disable must be refused). To drop an
+active session immediately after disabling, kick the client in the UniFi
+controller (Clients > select > Kick, or Block by MAC). Automating this via
+RFC 5176 CoA/Disconnect is a recorded Phase 2 item (CLAUDE.md Section 16).
+
 Only sign a site off once all 10 pass on real hardware. A green panel test
 suite proves the software layer; it says nothing about the network layer
 this document covers.

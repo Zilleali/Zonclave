@@ -464,6 +464,7 @@ On submit: writes/updates `ppsk_groups` (Section 7) first, which in turn generat
 - Bulk PPSK import/export (CSV).
 - Per-VLAN bandwidth/usage view.
 - Multi-admin roles.
+- **Instant session revocation on disable/delete** (identified 2026-07-23 during Section 21.1 test 5): disabling a PPSK correctly blocks re-authentication, but an already-connected device keeps its WPA2 session until it disconnects - RADIUS is only consulted at association time, so this is standard behavior, not a bug. Phase 1 workaround: kick the client manually in the UniFi controller after disabling. Phase 2: have `PpskService`'s disable/delete path send an RFC 5176 Disconnect-Message (CoA) to the AP so revocation is immediate - requires enabling RADIUS Dynamic Authorization in the UniFi RADIUS profile and verifying the APs honor it (test with `radclient -x <AP-IP>:3799 disconnect` first).
 
 ## 17. Administrative Logging (Phase 1)
 
@@ -1030,3 +1031,44 @@ Still open: the gateway monitor-route fix above (finding 8 - until done,
 Online status on GW_WG_VLAN301-303 is not measuring the tunnels and
 Section 12 fail-closed is blind for them), VLAN304 (no updated peer
 config was issued for it), and Section 21.1 tests 5-10.
+
+### 26.11 France tunnel expansion - VLANs 305-308 (client request, 2026-07-23)
+
+Sancover supplied four additional WireGuard peer configs for France exit
+IPs and requested four new PPSKs. This extends Kelder beyond the original
+5-tunnels-per-router Phase 1 scope as an explicit client request (the
+Section 4 rule against provisioning extra tunnels was about not acting on
+*stated future intent*; this is a direct instruction with configs in
+hand). Per Section 5's open-ended block, the new groups continue from 305:
+
+| PPSK (manual username) | VLAN | Subnet | Tunnel | Gateway |
+| --- | --- | --- | --- | --- |
+| SancoFR1 | 305 | 10.30.5.0/24 | WG_VLAN305 | GW_WG_VLAN305 |
+| SancoFR2 | 306 | 10.30.6.0/24 | WG_VLAN306 | GW_WG_VLAN306 |
+| SancoFR3 | 307 | 10.30.7.0/24 | WG_VLAN307 | GW_WG_VLAN307 |
+| SancoFR4 | 308 | 10.30.8.0/24 | WG_VLAN308 | GW_WG_VLAN308 |
+
+VLAN304 stays reserved for the UK set's fifth tunnel, keeping the
+original block intact.
+
+**Shared password (client-directed):** all four France PPSKs use the same
+manually-entered password, at Sancover's explicit request. Technically
+valid under WPA2-Enterprise (the username selects the VLAN, not the
+password) and permitted by Section 14's manual-entry decision. The
+tradeoff was flagged to the client: with a shared password, only the
+typed username separates the France groups - anyone holding the password
+can join any of the four France VLANs by choosing a different username.
+Accepted by the client.
+
+**Panel change needed: none in code.** `App\Domain\VlanPlan` derives
+subnet/tunnel/gateway from the VLAN ID; the dropdown range comes from
+config. On the VM, set `ZONCLAVE_VLAN_MAX=308` in `/opt/zonclave/.env`
+and run `php artisan config:cache` - VLANs 305-308 then appear in the
+Create form with correct derived values. The repo default in
+`panel/config/zonclave.php` stays 304 (per-site scope belongs in the
+site's `.env`, not the shipped default).
+
+Network side: repeat runbook Section 3 per new VLAN (now including the
+2026-07-22 finding warnings), plus UniFi trunk/AP tagging for 305-308 and
+the DNS redirect rules. Monitor IPs must be unique - continue with e.g.
+`9.9.9.9`, `149.112.112.112`, `208.67.222.222`, `208.67.220.220`.

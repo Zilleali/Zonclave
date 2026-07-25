@@ -13,6 +13,7 @@ use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Facades\Filament;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -29,10 +30,12 @@ class PpskGroupsTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->defaultSort('created_at', 'desc')
             ->columns([
                 TextColumn::make('label')->searchable()->sortable(),
                 TextColumn::make('radius_username')
                     ->label('RADIUS username')
+                    ->searchable()
                     ->copyable()
                     ->copyMessage('RADIUS username copied')
                     ->copyMessageDuration(2000),
@@ -66,6 +69,12 @@ class PpskGroupsTable
                         ...PpskGroupForm::usernameEditField(),
                         ...PpskGroupForm::passwordRegenerateFields(),
                     ])
+                    // Suppressed in favor of exactly one notification per
+                    // submit, sent from the callback below - previously this
+                    // stacked Filament's own default "Saved" toast underneath
+                    // PskRevealNotification whenever the password was also
+                    // regenerated in the same submit.
+                    ->successNotification(null)
                     ->using(function (PpskGroup $record, array $data): PpskGroup {
                         $service = app(PpskService::class);
                         $admin = Filament::auth()->user()?->getAttribute('email');
@@ -92,6 +101,8 @@ class PpskGroupsTable
                                 $result['group'],
                                 $result['psk'],
                             )->send();
+                        } else {
+                            Notification::make()->success()->title('Saved')->send();
                         }
 
                         return $record;
@@ -102,6 +113,11 @@ class PpskGroupsTable
                     ->icon(fn (PpskGroup $record): string => $record->status === PpskStatus::Active ? 'heroicon-o-pause-circle' : 'heroicon-o-play-circle')
                     ->color(fn (PpskGroup $record): string => $record->status === PpskStatus::Active ? 'warning' : 'success')
                     ->visible(fn (PpskGroup $record): bool => in_array($record->status, [PpskStatus::Active, PpskStatus::Disabled], true))
+                    // Only the disable direction is destructive (revokes live
+                    // authentication, Section 23.1) - enabling is benign and
+                    // reversible, so it stays a single click.
+                    ->requiresConfirmation(fn (PpskGroup $record): bool => $record->status === PpskStatus::Active)
+                    ->modalDescription('This immediately revokes the ability to authenticate for anyone still using this credential.')
                     ->action(function (PpskGroup $record): void {
                         $service = app(PpskService::class);
                         $admin = Filament::auth()->user()?->getAttribute('email');

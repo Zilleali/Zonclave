@@ -31,7 +31,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
-            ->brandName('Zonclave')
+            ->brandName('Peng Balous')
             ->profile(EditProfile::class)
             ->colors([
                 'primary' => Color::Sky,
@@ -69,6 +69,10 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn (): View => view('filament.theme-enhancements'),
+            )
+            ->renderHook(
+                PanelsRenderHook::FOOTER,
+                fn (): View => view('filament.footer'),
             );
     }
 }

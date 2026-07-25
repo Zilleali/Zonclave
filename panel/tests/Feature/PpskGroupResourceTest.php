@@ -48,6 +48,24 @@ class PpskGroupResourceTest extends TestCase
         $this->assertDatabaseHas('radcheck', ['username' => $group->radius_username]);
     }
 
+    // Label format is a suggestion, not a requirement (decision reversed
+    // 2026-07-25, client request) - the VLAN<id>_<GroupName> convention is
+    // no longer enforced, so anything up to the length cap must be accepted.
+    public function test_create_flow_accepts_a_label_with_no_naming_convention_at_all(): void
+    {
+        Livewire::test(ListPpskGroups::class)
+            ->callAction('create', data: [
+                'label' => "Brunel's Laptop",
+                'vlan_id' => 300,
+                'enabled' => true,
+                'password_source' => 'generate',
+                'username_source' => 'generate',
+            ])
+            ->assertHasNoActionErrors();
+
+        $this->assertSame("Brunel's Laptop", PpskGroup::query()->sole()->label);
+    }
+
     public function test_create_flow_rejects_a_vlan_outside_the_provisioned_block(): void
     {
         Livewire::test(ListPpskGroups::class)

@@ -59,15 +59,17 @@ class PpskGroupForm
                 ->label('Label')
                 ->required()
                 ->maxLength(128)
-                ->regex('/^VLAN\d+_[A-Za-z0-9]+$/')
                 ->placeholder('VLAN300_GUESTA')
-                // Suggestions from existing labels (client request
-                // 2026-07-25) via the browser's native <datalist> - still
-                // plain free text underneath, the dropdown is a helper,
-                // not a constraint, so the Section 6 regex above stays the
-                // only real validation.
+                // No format constraint (decision reversed 2026-07-25, client
+                // request - the VLAN<id>_<GroupName> convention was
+                // previously enforced by regex; the client wants complete
+                // freedom to name a group however he likes, e.g. a person's
+                // name or a plain description with no VLAN reference at
+                // all). Suggestions from existing labels via the browser's
+                // native <datalist> remain purely a convenience, never a
+                // constraint - this field never had any other validation.
                 ->datalist(fn (): array => PpskGroup::query()->pluck('label')->unique()->values()->all())
-                ->helperText('Naming convention: VLAN<id>_<GroupName> (Section 6). Pick a suggestion or type your own.'),
+                ->helperText('Any name you like. Pick a suggestion or type your own.'),
 
             Select::make('vlan_id')
                 ->label('VLAN / tunnel')

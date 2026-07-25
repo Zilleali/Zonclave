@@ -13,6 +13,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 // Create/Edit PPSK form, per CLAUDE.md Section 16.3. Password is
@@ -198,10 +199,24 @@ class PpskGroupForm
                 ->label('Regenerate password')
                 ->live()
                 ->default(false)
+                // A field's ->default() only applies when it first mounts,
+                // and password_source starts hidden - without this, flipping
+                // the toggle on reveals the radio with neither option
+                // visibly selected (confirmed via actual browser testing,
+                // 2026-07-26), even though the submit handler's own
+                // `?? 'generate'` fallback means it was never functionally
+                // broken. Fixed by explicitly (re)asserting the default the
+                // moment the toggle turns on, so the UI never shows an
+                // ambiguous, seemingly-unselected state.
+                ->afterStateUpdated(function (Set $set, bool $state): void {
+                    if ($state) {
+                        $set('password_source', 'generate');
+                    }
+                })
                 ->helperText('The current Wi-Fi password stops working immediately and the new one is shown once.'),
 
             Radio::make('password_source')
-                ->label('New password')
+                ->label('Password')
                 ->options([
                     'generate' => 'Auto-generate (recommended)',
                     'manual' => 'Enter manually',

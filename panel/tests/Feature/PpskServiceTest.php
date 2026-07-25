@@ -125,6 +125,41 @@ class PpskServiceTest extends TestCase
         ]);
     }
 
+    // Editing the RADIUS username (client request, 2026-07-25 - reverses
+    // the earlier create-only decision) must leave no orphan credential
+    // behind: the old username's radcheck/radreply rows are purged once
+    // the new username's rows are projected, in the same transaction.
+    public function test_update_username_projects_new_and_purges_old_radius_rows(): void
+    {
+        $created = $this->service()->create('VLAN300_TESTA', 300, true, 'admin@test');
+        $group = $created['group'];
+        $oldUsername = $group->radius_username;
+
+        $group = $this->service()->update($group, $group->label, $group->vlan_id, 'admin@test', 'renamed_user');
+
+        $this->assertSame('renamed_user', $group->radius_username);
+        $this->assertDatabaseHas('radcheck', [
+            'username' => 'renamed_user',
+            'attribute' => 'Cleartext-Password',
+            'value' => $created['psk'],
+        ]);
+        $this->assertDatabaseMissing('radcheck', ['username' => $oldUsername]);
+        $this->assertDatabaseMissing('radreply', ['username' => $oldUsername]);
+    }
+
+    // A no-op username (unchanged, or simply omitted) must not touch
+    // RADIUS rows at all - only a genuine change triggers the purge.
+    public function test_update_without_username_change_leaves_radius_rows_untouched(): void
+    {
+        $group = $this->service()->create('VLAN300_TESTA', 300, true, 'admin@test')['group'];
+        $username = $group->radius_username;
+
+        $this->service()->update($group, 'VLAN300_TESTB', 300, 'admin@test');
+
+        $this->assertDatabaseHas('radcheck', ['username' => $username]);
+        $this->assertSame(1, DB::table('radcheck')->where('username', $username)->count());
+    }
+
     public function test_delete_leaves_no_orphan_radius_rows(): void
     {
         $group = $this->service()->create('VLAN300_TESTA', 300, true, 'admin@test')['group'];

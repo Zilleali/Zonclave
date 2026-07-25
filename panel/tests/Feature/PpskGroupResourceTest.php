@@ -193,7 +193,11 @@ class PpskGroupResourceTest extends TestCase
         $group = PpskGroup::factory()->create(['vlan_id' => 300]);
 
         Livewire::test(ListPpskGroups::class)
-            ->callTableAction('edit', $group, data: ['label' => 'VLAN302_RENAMED', 'vlan_id' => 302])
+            ->callTableAction('edit', $group, data: [
+                'label' => 'VLAN302_RENAMED',
+                'vlan_id' => 302,
+                'radius_username' => $group->radius_username,
+            ])
             ->assertHasNoTableActionErrors();
 
         $group->refresh();
@@ -202,13 +206,59 @@ class PpskGroupResourceTest extends TestCase
         $this->assertSame('10.30.2.0/24', $group->subnet);
     }
 
-    public function test_regenerate_password_action_issues_a_new_credential(): void
+    // RADIUS username editing (client request, 2026-07-25) is now part of
+    // the Edit action itself, not a separate flow - CLAUDE.md Section 6's
+    // create-only rule is deliberately reversed here.
+    public function test_edit_flow_changes_radius_username_and_purges_the_old_one(): void
+    {
+        $group = PpskGroup::factory()->create();
+        $oldUsername = $group->radius_username;
+
+        Livewire::test(ListPpskGroups::class)
+            ->callTableAction('edit', $group, data: [
+                'label' => $group->label,
+                'vlan_id' => $group->vlan_id,
+                'radius_username' => 'RenamedUser1',
+            ])
+            ->assertHasNoTableActionErrors();
+
+        $group->refresh();
+
+        $this->assertSame('RenamedUser1', $group->radius_username);
+        $this->assertDatabaseHas('radcheck', ['username' => 'RenamedUser1']);
+        $this->assertDatabaseMissing('radcheck', ['username' => $oldUsername]);
+    }
+
+    public function test_edit_flow_rejects_a_radius_username_already_taken(): void
+    {
+        PpskGroup::factory()->create(['radius_username' => 'TakenUser1']);
+        $group = PpskGroup::factory()->create();
+
+        Livewire::test(ListPpskGroups::class)
+            ->callTableAction('edit', $group, data: [
+                'label' => $group->label,
+                'vlan_id' => $group->vlan_id,
+                'radius_username' => 'TakenUser1',
+            ])
+            ->assertHasTableActionErrors(['radius_username']);
+    }
+
+    // Regenerate password is now embedded in the Edit action, gated by the
+    // regenerate_password toggle (client request, 2026-07-25 - previously
+    // its own separate table action).
+    public function test_edit_flow_regenerate_password_toggle_issues_a_new_credential(): void
     {
         $group = PpskGroup::factory()->create();
         $originalHash = $group->password_hash;
 
         Livewire::test(ListPpskGroups::class)
-            ->callTableAction('regeneratePassword', $group, data: ['password_source' => 'generate'])
+            ->callTableAction('edit', $group, data: [
+                'label' => $group->label,
+                'vlan_id' => $group->vlan_id,
+                'radius_username' => $group->radius_username,
+                'regenerate_password' => true,
+                'password_source' => 'generate',
+            ])
             ->assertHasNoTableActionErrors();
 
         $group->refresh();
@@ -217,12 +267,16 @@ class PpskGroupResourceTest extends TestCase
         $this->assertDatabaseHas('admin_log', ['action' => 'ppsk_password_regenerated', 'target_ppsk_id' => $group->id]);
     }
 
-    public function test_regenerate_password_action_with_manual_password_uses_the_supplied_value(): void
+    public function test_edit_flow_regenerate_password_with_manual_password_uses_the_supplied_value(): void
     {
         $group = PpskGroup::factory()->create();
 
         Livewire::test(ListPpskGroups::class)
-            ->callTableAction('regeneratePassword', $group, data: [
+            ->callTableAction('edit', $group, data: [
+                'label' => $group->label,
+                'vlan_id' => $group->vlan_id,
+                'radius_username' => $group->radius_username,
+                'regenerate_password' => true,
                 'password_source' => 'manual',
                 'manual_password' => 'AnotherChosenPassword2',
             ])
@@ -231,5 +285,24 @@ class PpskGroupResourceTest extends TestCase
         $group->refresh();
 
         $this->assertSame('AnotherChosenPassword2', Crypt::decryptString($group->password_hash));
+    }
+
+    public function test_edit_flow_without_the_regenerate_toggle_leaves_the_password_untouched(): void
+    {
+        $group = PpskGroup::factory()->create();
+        $originalHash = $group->password_hash;
+
+        Livewire::test(ListPpskGroups::class)
+            ->callTableAction('edit', $group, data: [
+                'label' => $group->label,
+                'vlan_id' => $group->vlan_id,
+                'radius_username' => $group->radius_username,
+                'regenerate_password' => false,
+            ])
+            ->assertHasNoTableActionErrors();
+
+        $group->refresh();
+
+        $this->assertSame($originalHash, $group->password_hash);
     }
 }

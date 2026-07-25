@@ -6,7 +6,7 @@
 **Status:** Phase 1 - In Progress (dev environment active)
 **Client:** Sancover
 **Developer & Network Engineer:** ZILL E ALI (Developer Zon)
-**Last updated:** 2026-07-22
+**Last updated:** 2026-07-25
 
 This file is the single source of truth for the project. Anyone picking up implementation work, human or AI-assisted, should read it in full before writing any config or code. Section numbers are stable. Do not renumber sections 1 to 22, since the kickoff prompt references them directly. Add new material as new trailing sections.
 
@@ -213,7 +213,9 @@ Descriptive, self-documenting names are non-negotiable at this scale. Six months
 
 Apply this consistently across OPNsense interface descriptions, gateway names, firewall rules and aliases, and the `ppsk_groups` table. The names should match across all of them so a search for `VLAN300` in any system surfaces everything related to it.
 
-**RADIUS username manual entry (decision recorded 2026-07-18, client request from Sancover):** auto-generate (`ppsk_group###`) remains the default, but manual entry is now an explicit opt-in on the Create form, same pattern as the Section 14 password reversal - needed for the client's own naming scheme (e.g. `SancoUk1`, `SancoUk2`) rather than the sequential internal convention. Create-only: there is no "change username" action after creation, since an existing device is already paired against whatever username it authenticated with - fixing a mistake means delete and recreate, not edit. Every manual value passes through `App\Domain\RadiusUsername` (3 to 64 characters, letters/numbers/underscore/hyphen only) and a uniqueness check against `ppsk_groups.radius_username` before it is ever persisted.
+**RADIUS username manual entry (decision recorded 2026-07-18, client request from Sancover):** auto-generate (`ppsk_group###`) remains the default, but manual entry is now an explicit opt-in on the Create form, same pattern as the Section 14 password reversal - needed for the client's own naming scheme (e.g. `SancoUk1`, `SancoUk2`) rather than the sequential internal convention. Every manual value passes through `App\Domain\RadiusUsername` (3 to 64 characters, letters/numbers/underscore/hyphen only) and a uniqueness check against `ppsk_groups.radius_username` before it is ever persisted.
+
+**Editable after creation (decision reversed 2026-07-25, client request from Sancover):** the username is no longer create-only. The Edit action now includes a direct RADIUS username field (`App\Filament\Resources\PpskGroups\Schemas\PpskGroupForm::usernameEditField()`), validated the same way as create, uniqueness ignoring the record's own current value. **Accepted risk, explicitly flagged to the client before building this:** a device already connected using the old username is not notified of the rename - it keeps retrying the old credential and simply stops authenticating, with nothing in the panel surfacing why. `PpskService::update()` purges the old username's `radcheck`/`radreply` rows once the new ones are projected (same transaction), so the old username stops working outright rather than lingering as an orphaned, still-valid credential - but there is no in-panel warning beyond the field's own helper text. If this becomes a recurring support issue, revisit; the original create-only reasoning (documented above, superseded but not wrong) still applies to *why* this is risky, only the tradeoff decision changed.
 
 ## 7. Configuration Registry - Authoritative Inventory
 
@@ -397,6 +399,8 @@ Do not leave `.conf` files scattered across the filesystem where anyone with she
 
 **Product name:** the panel built in this section is **Zonclave**. It is the customer-facing name for the whole management surface (PPSK, VLAN, and tunnel administration). Use "Zonclave" in the UI title, login page, and any client-facing documentation. Internally, code and file paths may still use `ppsk`/`radius` naming per Section 6, since those names describe the domain concept, not the product brand.
 
+**Sancover deployment white-label (decision recorded 2026-07-25, client request):** the `/admin` panel Sancover's admin actually logs into is branded **"Peng Balous"**, not "Zonclave" - `AdminPanelProvider::brandName()` and `.env`'s `APP_NAME` on that deployment, plus a panel-wide footer (`resources/views/filament/footer.blade.php`, rendered via `PanelsRenderHook::FOOTER`) crediting "Peng Balous is developed by Mikrotik Certified ZILLEALI, and is a product of Developer Zon." This is scoped to the `/admin` panel only - the public marketing landing page and `/docs` (Section 25's separate surface, general Developer Zon product marketing, not Sancover-specific) still say "Zonclave" and were deliberately left unchanged. "Zonclave" remains this project's own internal/engineering name throughout this document, the codebase's internal naming (Section 6), and any future client whose deployment isn't white-labeled - this is a per-deployment branding layer, not a project rename.
+
 **Purpose:** let the admin manage PPSKs without touching the database or FreeRADIUS config directly.
 
 ### Tech stack (budget-first, one recorded decision)
@@ -427,7 +431,7 @@ Whichever stack is chosen, it reads and writes `ppsk_groups` as the source of tr
 
 - Table of all PPSK groups: Label, RADIUS username, VLAN ID, WireGuard tunnel, Status (active/disabled), Created date.
 - Search/filter by label or VLAN.
-- Action buttons per row: Edit, Enable/Disable toggle, Delete (with confirmation).
+- Action buttons per row: Edit, Enable/Disable toggle, Delete (with confirmation). Regenerate password is not a separate button (decision reversed 2026-07-25, client request) - it lives inside the Edit modal, gated behind a "Regenerate password" toggle that is off by default, so opening Edit never silently issues a new credential.
 - "Add New PPSK" button (top of page) opens the Create form.
 - Phase 1: no live connection status here (that is Phase 2's device activity log and Section 13 health data). Phase 1 dashboard is inventory only.
 - No polling. Live data loads on demand only (manual refresh or explicit button). Do not add timed auto-refresh.
@@ -436,8 +440,8 @@ Whichever stack is chosen, it reads and writes `ppsk_groups` as the source of tr
 
 Fields:
 
-- Label (free text, human-friendly name, follows the `VLAN<id>_<GroupName>` convention from Section 6)
-- RADIUS username: **auto-generate (default) or enter manually**, per Section 6 (create-only choice, decision recorded 2026-07-18). Manual entry still passes through `RadiusUsername` validation (3-64 chars, letters/numbers/underscore/hyphen) and a uniqueness check before it is persisted.
+- Label (free text, human-friendly name, follows the `VLAN<id>_<GroupName>` convention from Section 6). The Create/Edit field also shows a datalist of existing labels as suggestions (decision recorded 2026-07-25, client request) - still plain free text underneath, the suggestions are a convenience, not a constraint.
+- RADIUS username: **auto-generate (default) or enter manually** on create, per Section 6 (decision recorded 2026-07-18). On Edit, the username is directly editable (decision reversed 2026-07-25, see Section 6's own note on the accepted risk). Either way it passes through `RadiusUsername` validation (3-64 chars, letters/numbers/underscore/hyphen) and a uniqueness check before it is persisted.
 - Password: **auto-generate (default) or enter manually**, per Section 14 (a choice, not generate-only as originally decided; either way shown once on creation with a "copy" action). Manual entry still passes through the Section 14 validation boundary (8-63 chars).
 - VLAN ID: dropdown populated from the pre-provisioned VLAN list (Phase 1: 5 to 10 options)
 - WireGuard tunnel: dropdown populated from pre-provisioned tunnels, 1:1 matched to VLAN choice (selecting a VLAN auto-selects its paired tunnel, since they are fixed 1:1 in this design)

@@ -82,16 +82,26 @@ class PpskService
     }
 
     /**
-     * Update label and/or VLAN. A VLAN change re-derives subnet, tunnel,
-     * and gateway from the plan and reprojects the RADIUS rows.
+     * Update label, VLAN, and/or RADIUS username. A VLAN change re-derives
+     * subnet, tunnel, and gateway from the plan and reprojects the RADIUS
+     * rows. A username change (client request, 2026-07-25 - reverses the
+     * create-only decision on the domain type's own field, see
+     * PpskGroupForm::usernameEditField()) purges the *old* username's
+     * radcheck/radreply rows after projecting the new ones - projectToRadius()
+     * only ever writes rows for the group's current username, so without
+     * this the old username would silently keep authenticating as an
+     * orphaned credential no longer traceable to any ppsk_groups row.
      */
-    public function update(PpskGroup $group, string $label, int $vlanId, ?string $adminUser): PpskGroup
+    public function update(PpskGroup $group, string $label, int $vlanId, ?string $adminUser, ?string $radiusUsername = null): PpskGroup
     {
         $plan = VlanPlan::forVlan($vlanId);
+        $oldUsername = $group->radius_username;
+        $newUsername = $radiusUsername !== null ? RadiusUsername::fromString($radiusUsername)->value : $oldUsername;
 
-        return DB::transaction(function () use ($group, $label, $plan, $adminUser): PpskGroup {
+        return DB::transaction(function () use ($group, $label, $plan, $adminUser, $oldUsername, $newUsername): PpskGroup {
             $group = $this->groups->update($group, [
                 'label' => $label,
+                'radius_username' => $newUsername,
                 'vlan_id' => $plan['vlan_id'],
                 'subnet' => $plan['subnet'],
                 'wireguard_interface' => $plan['wireguard_interface'],
@@ -99,6 +109,11 @@ class PpskService
             ]);
 
             $this->projectToRadius($group);
+
+            if ($newUsername !== $oldUsername) {
+                $this->radius->purgeFor($oldUsername);
+            }
+
             $this->auditLog->log(AdminLogAction::PpskUpdated, $adminUser, $group->id, $group->label);
 
             return $group;

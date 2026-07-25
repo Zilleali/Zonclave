@@ -61,14 +61,40 @@ class PpskGroupsTable
             ])
             ->recordActions([
                 EditAction::make()
-                    ->schema(PpskGroupForm::labelAndVlanFields())
+                    ->schema([
+                        ...PpskGroupForm::labelAndVlanFields(),
+                        ...PpskGroupForm::usernameEditField(),
+                        ...PpskGroupForm::passwordRegenerateFields(),
+                    ])
                     ->using(function (PpskGroup $record, array $data): PpskGroup {
-                        return app(PpskService::class)->update(
+                        $service = app(PpskService::class);
+                        $admin = Filament::auth()->user()?->getAttribute('email');
+
+                        $record = $service->update(
                             $record,
                             (string) $data['label'],
                             (int) $data['vlan_id'],
-                            Filament::auth()->user()?->getAttribute('email'),
+                            $admin,
+                            (string) $data['radius_username'],
                         );
+
+                        if ($data['regenerate_password'] ?? false) {
+                            $manualPsk = ($data['password_source'] ?? 'generate') === 'manual'
+                                ? (string) ($data['manual_password'] ?? '')
+                                : null;
+
+                            $result = $service->regeneratePassword($record, $admin, $manualPsk);
+                            $record = $result['group'];
+
+                            PskRevealNotification::make(
+                                'Password regenerated - credentials shown once',
+                                'New Wi-Fi credentials',
+                                $result['group'],
+                                $result['psk'],
+                            )->send();
+                        }
+
+                        return $record;
                     }),
 
                 Action::make('toggleStatus')
@@ -85,31 +111,6 @@ class PpskGroupsTable
                         } else {
                             $service->enable($record, $admin);
                         }
-                    }),
-
-                Action::make('regeneratePassword')
-                    ->label('Regenerate password')
-                    ->icon('heroicon-o-arrow-path')
-                    ->color('warning')
-                    ->schema(PpskGroupForm::passwordFields())
-                    ->modalDescription('The current Wi-Fi password stops working immediately. The new one is shown once.')
-                    ->action(function (PpskGroup $record, array $data): void {
-                        $manualPsk = ($data['password_source'] ?? 'generate') === 'manual'
-                            ? (string) ($data['manual_password'] ?? '')
-                            : null;
-
-                        $result = app(PpskService::class)->regeneratePassword(
-                            $record,
-                            Filament::auth()->user()?->getAttribute('email'),
-                            $manualPsk,
-                        );
-
-                        PskRevealNotification::make(
-                            'Password regenerated - credentials shown once',
-                            'New Wi-Fi credentials',
-                            $result['group'],
-                            $result['psk'],
-                        )->send();
                     }),
 
                 DeleteAction::make()

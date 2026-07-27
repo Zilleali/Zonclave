@@ -28,6 +28,7 @@
                     <a href="{{ url('/#how-it-works') }}">How it works</a>
                     <a href="{{ url('/#features') }}">Features</a>
                     <a href="{{ url('/docs') }}">Documentation</a>
+                    <a href="{{ url('/docs/changelog') }}">Changelog</a>
                     <a href="{{ url('/#about') }}">About</a>
                     <a href="mailto:zilleali1245@gmail.com?subject=Zonclave%20inquiry" class="btn btn-primary btn-sm">Get in touch</a>
                 </nav>
@@ -43,6 +44,7 @@
                 <a href="{{ url('/#how-it-works') }}">How it works</a>
                 <a href="{{ url('/#features') }}">Features</a>
                 <a href="{{ url('/docs') }}">Documentation</a>
+                <a href="{{ url('/docs/changelog') }}">Changelog</a>
                 <a href="{{ url('/#about') }}">About</a>
                 <a href="mailto:zilleali1245@gmail.com?subject=Zonclave%20inquiry" class="btn btn-primary btn-sm">Get in touch</a>
             </nav>

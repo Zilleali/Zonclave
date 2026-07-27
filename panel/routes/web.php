@@ -39,5 +39,32 @@ Route::get('/docs/opnsense-configuration', fn (DocsMarkdownRenderer $renderer) =
     'ctaUrl' => null,
 ]));
 
+Route::get('/docs/user-guide', fn (DocsMarkdownRenderer $renderer) => view('docs.markdown-page', [
+    'title' => 'User Guide',
+    'description' => 'A screen-by-screen walkthrough of the Zonclave admin panel, for whoever runs it day to day.',
+    'html' => $renderer->render('user-guide'),
+    'ctaHeading' => 'Setting this up for the first time?',
+    'ctaLabel' => 'Read the installation guide',
+    'ctaUrl' => '/docs/installation-guide',
+]));
+
+Route::get('/docs/developer-guide', fn (DocsMarkdownRenderer $renderer) => view('docs.markdown-page', [
+    'title' => 'Developer Guide',
+    'description' => 'Architecture, coding standards, and conventions for anyone picking up this codebase.',
+    'html' => $renderer->render('developer-guide'),
+    'ctaHeading' => 'Want the full command list?',
+    'ctaLabel' => 'Read the command reference',
+    'ctaUrl' => '/docs/commands-reference',
+]));
+
+Route::get('/docs/changelog', fn (DocsMarkdownRenderer $renderer) => view('docs.markdown-page', [
+    'title' => 'Changelog',
+    'description' => 'What changed, and when - newest first.',
+    'html' => $renderer->render('changelog'),
+    'ctaHeading' => 'Questions about a specific release?',
+    'ctaLabel' => 'Get in touch',
+    'ctaUrl' => null,
+]));
+
 Route::get('/docs/site-configuration', fn () => view('docs.site-configuration'));
 Route::get('/docs/troubleshooting', fn () => view('docs.troubleshooting'));

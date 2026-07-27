@@ -46,6 +46,21 @@ class PublicPagesTest extends TestCase
         $this->get('/docs/troubleshooting')->assertOk()->assertSee('Troubleshooting');
     }
 
+    public function test_user_guide_is_reachable(): void
+    {
+        $this->get('/docs/user-guide')->assertOk()->assertSee('User Guide');
+    }
+
+    public function test_developer_guide_is_reachable(): void
+    {
+        $this->get('/docs/developer-guide')->assertOk()->assertSee('Developer Guide');
+    }
+
+    public function test_changelog_is_reachable(): void
+    {
+        $this->get('/docs/changelog')->assertOk()->assertSee('Changelog');
+    }
+
     public function test_public_pages_do_not_link_to_github_or_the_raw_runbook_file(): void
     {
         // Section 20/25.3-style guardrail: this deployment's real site
@@ -61,6 +76,7 @@ class PublicPagesTest extends TestCase
         foreach ([
             '/', '/docs', '/docs/installation-guide', '/docs/commands-reference',
             '/docs/opnsense-configuration', '/docs/site-configuration', '/docs/troubleshooting',
+            '/docs/user-guide', '/docs/developer-guide', '/docs/changelog',
         ] as $url) {
             $html = $this->get($url)->getContent();
             $this->assertIsString($html);

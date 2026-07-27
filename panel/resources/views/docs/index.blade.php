@@ -35,6 +35,21 @@
                 <h2>Troubleshooting</h2>
                 <p>Real issues hit during deployment, each with the actual symptom, root cause, and fix.</p>
             </a>
+
+            <a href="{{ url('/docs/user-guide') }}" class="card card-link">
+                <h2>User guide</h2>
+                <p>A screen-by-screen walkthrough of the admin panel, for whoever runs it day to day.</p>
+            </a>
+
+            <a href="{{ url('/docs/developer-guide') }}" class="card card-link">
+                <h2>Developer guide</h2>
+                <p>Architecture, coding standards, and conventions for anyone picking up this codebase.</p>
+            </a>
+
+            <a href="{{ url('/docs/changelog') }}" class="card card-link">
+                <h2>Changelog</h2>
+                <p>What changed, and when - newest first, including the current version.</p>
+            </a>
         </div>
     </section>
 

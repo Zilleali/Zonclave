@@ -28,6 +28,9 @@ final class DocsMarkdownRenderer
         'commands-reference' => 'commands-reference.md',
         'opnsense-configuration' => 'opnsense-configuration.md',
         'installation-guide' => 'installation-guide.md',
+        'user-guide' => 'user-guide.md',
+        'developer-guide' => 'developer-guide.md',
+        'changelog' => 'changelog.md',
     ];
 
     public function render(string $slug): string

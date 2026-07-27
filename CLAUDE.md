@@ -6,7 +6,7 @@
 **Status:** Phase 1 - In Progress (dev environment active)
 **Client:** Sancover
 **Developer & Network Engineer:** ZILL E ALI (Developer Zon)
-**Last updated:** 2026-07-25
+**Last updated:** 2026-07-28 (VLAN management from the panel: add/delete provisioned VLANs; Sessions page now shows the RADIUS disconnect reason)
 
 This file is the single source of truth for the project. Anyone picking up implementation work, human or AI-assisted, should read it in full before writing any config or code. Section numbers are stable. Do not renumber sections 1 to 22, since the kickoff prompt references them directly. Add new material as new trailing sections.
 
@@ -459,17 +459,38 @@ On submit: writes/updates `ppsk_groups` (Section 7) first, which in turn generat
 #### 16.5 Settings Page (minimal, Phase 1)
 
 - Change admin password.
-- (Phase 2 candidate, not required Phase 1: manage the list of available VLAN/tunnel pairs from the UI instead of a fixed pre-provisioned list.)
+- ~~(Phase 2 candidate, not required Phase 1: manage the list of available VLAN/tunnel pairs from the UI instead of a fixed pre-provisioned list.)~~ **Pulled into Phase 1, 2026-07-28, client request** - see the VLANs page in Section 16.7 below. This isn't a second Settings page; it's its own resource, same as PPSK Groups or Sessions.
 
-**Decision recorded 2026-07-13:** no separate Settings page. Filament's built-in Profile page (`/admin/profile`) already covers "change admin password" (Section 16.1's single admin, no self-registration), so a second page with the same one field would be pure duplication. The email field on that page is locked read-only (see the `App\Filament\Pages\EditProfile` override), since there is no second admin account to reconcile it against. Revisit only if Phase 2 needs settings beyond password (e.g. managing the VLAN/tunnel list from the UI).
+**Decision recorded 2026-07-13:** no separate Settings page. Filament's built-in Profile page (`/admin/profile`) already covers "change admin password" (Section 16.1's single admin, no self-registration), so a second page with the same one field would be pure duplication. The email field on that page is locked read-only (see the `App\Filament\Pages\EditProfile` override), since there is no second admin account to reconcile it against.
+
+#### 16.7 VLANs page (pulled into Phase 1, 2026-07-28, client request)
+
+**Superseded scoping (kept for history):** managing the provisioned VLAN list from the panel was originally a Phase 2 candidate (Section 16.5 above) - Phase 1 shipped with a fixed, config-derived contiguous range (`ZONCLAVE_VLAN_MIN`/`ZONCLAVE_VLAN_MAX`, Section 26.11). Adding a VLAN meant editing `.env` and running `php artisan config:cache` on the server; there was no way to remove one that was no longer used (VLAN304 sat orphaned per Section 26.10/26.11, with no delete path at all). The client asked for both - add and delete, from the panel - once VLAN304's dead weight became a real annoyance.
+
+- **`App\Filament\Resources\ProvisionedVlans`**: lists every currently-provisioned VLAN with its derived subnet/tunnel/gateway (Section 5/6's formula is unchanged - adding a VLAN is still just picking an ID, nothing else is ever typed in) and a live count of how many PPSKs use it. A **Create** modal adds a new VLAN (validated: 300 or above per Section 5's reserved floor, up to 4094 - the 802.1Q ceiling). **Delete is blocked**, not silently allowed, if any PPSK - active or disabled - still references that VLAN; the error names the specific PPSK(s) so the admin knows what to fix first (`App\Exceptions\VlanInUseException`, thrown by `App\Services\ProvisionedVlanService::deprovision()`).
+- **The set no longer has to be contiguous.** This is the actual point of the change: VLAN304-style orphaned slots can now just be deleted, leaving a gap, rather than sitting unused forever because there was no delete path. A new VLAN doesn't have to continue the existing block either.
+- **Data model**: a new `provisioned_vlans` table (`vlan_id` unique, that's it) is the new source of truth for which VLANs exist. `App\Domain\VlanPlan`'s public API (`forVlan()`, `isProvisioned()`, `options()`) is unchanged - every existing caller (the PPSK create/edit form, the Sessions VLAN filter, the Tunnel Egress IPs page, the network topology widget) needed zero changes, since only `VlanPlan`'s internals moved from reading the config range to querying this table.
+- **`ZONCLAVE_VLAN_MIN`/`ZONCLAVE_VLAN_MAX`** still exist in `.env`, but their role changed: they're read once, by the `provisioned_vlans` migration, to seed the table with whatever range a deployment already had configured (so this shipped with zero behavior change for the live Kelder node) - and they remain the sane defaults a brand-new install seeds from. They are no longer read anywhere at runtime.
+
+#### 16.6 Session / Connected-Devices Log (pulled into Phase 1, decision reversed 2026-07-27, client request)
+
+**Superseded scoping (kept for history):** a device activity log page was originally planned as Phase 2 only, since it depends on FreeRADIUS SQL accounting (the `radacct` table), which the Phase 1 installer never enabled (Section 22 used to list this exclusion explicitly). The client asked for it now, once all 8 Kelder tunnels were confirmed stable, so it was pulled forward.
+
+This turned out cheaper than the original Phase 2 framing assumed: `radacct` already exists in production (the installer loads FreeRADIUS's full package schema from day one, so the shipped SQL queries never error even before accounting was enabled - it just stayed empty). Only two things were actually needed: enabling accounting end to end on the network side, and a read-only panel view of the table.
+
+- **Data source:** `radacct`, read only (`App\Models\RadiusAccounting`). The panel never writes to it - FreeRADIUS is the sole writer, the mirror image of the panel's own read-only relationship with `radcheck`/`radreply` (Section 23.1). Joined to `ppsk_groups` by `username = radius_username`, a string join like `radcheck`/`radreply` already use, not a real foreign key.
+- **Session Log page** (`App\Filament\Resources\SessionLogs`): shows, per session, the PPSK, RADIUS username, VLAN, device MAC (`Calling-Station-Id`), the IP it connected from (`Framed-IP-Address`), connect/disconnect time, **why it disconnected** (`Acct-Terminate-Cause`, added 2026-07-28 - shown exactly as the AP reported it, e.g. `User-Request`/`Idle-Timeout`/`Lost-Carrier`, never interpreted or translated), duration, and data used - all standard `radacct` columns, no new FreeRADIUS work beyond turning accounting on. Filterable by VLAN and by "currently connected only." Read-only: no create, edit, or delete, same as the admin log (Section 17).
+- **Stale-session heuristic:** UniFi does not always send a clean Acct-Stop when a device just dies or loses power, so a session with no stop record would otherwise show as "Connected" forever. A session reads as **Stale** once its last known activity (`acctupdatetime`, falling back to `acctstarttime`) is more than 15 minutes old with no stop recorded; genuinely closed sessions (`acctstoptime` set) always read as **Disconnected**.
+- **Egress IP is deliberately not live.** There is no OPNsense API integration yet (Section 19 is still Phase 2), so the panel has no way to ask a tunnel what public IP it's using right now. Instead, `App\Filament\Resources\TunnelEgressIps` is a small manually-maintained reference: one row per currently-provisioned VLAN, admin-edited whenever a tunnel's actual residential IP is confirmed (the same data already tracked by hand in Section 26.10/26.11's tables). The Session Log shows it labeled "known egress IP," explicitly not a live per-session measurement - do not present it as verified traffic routing.
+- **Network-side prerequisite, still open:** the panel code alone shows no real sessions until FreeRADIUS accounting is actually enabled (the `accounting { sql }` block in the site config, matching the same `use_tunneled_reply`-style per-host config class of fix as Section 26.7) and the UniFi SSID's RADIUS profile has Accounting turned on (port 1813, same shared secret as auth). See Section 20's open items.
 
 ### Phase 2 additions to the panel (not built in Phase 1, listed for planning only)
 
-- Device activity log page: which device/MAC authenticated with which PPSK, timestamp, session duration, data used (requires RADIUS accounting, `radacct` table).
 - Per-tunnel health status (Section 13) surfaced as a dashboard column.
 - Bulk PPSK import/export (CSV).
 - Per-VLAN bandwidth/usage view.
 - Multi-admin roles.
+- Live, automatic (OPNsense-API-verified) egress IP per session, once Section 19 automation exists - Section 16.6's manual reference table is the Phase 1 stand-in.
 - **Instant session revocation on disable/delete** (identified 2026-07-23 during Section 21.1 test 5): disabling a PPSK correctly blocks re-authentication, but an already-connected device keeps its WPA2 session until it disconnects - RADIUS is only consulted at association time, so this is standard behavior, not a bug. Phase 1 workaround: kick the client manually in the UniFi controller after disabling. Phase 2: have `PpskService`'s disable/delete path send an RFC 5176 Disconnect-Message (CoA) to the AP so revocation is immediate - requires enabling RADIUS Dynamic Authorization in the UniFi RADIUS profile and verifying the APs honor it (test with `radclient -x <AP-IP>:3799 disconnect` first).
 
 ## 17. Administrative Logging (Phase 1)
@@ -577,6 +598,7 @@ This is only feasible cleanly because of the service-layer separation in Section
 - [ ] OPNsense manual config at Kelder: VLANs 300-304, WireGuard tunnels, gateways, firewall allow/block rules (Sections 9-12; see `docs/opnsense-configuration.md` and `docs/runbook/phase1-opnsense-unifi.md`)
 - [ ] UniFi: RADIUS profile + SSID pointed at 192.168.1.175 with the shared secret from the install summary (Section 8.3)
 - [ ] Full Section 21 acceptance test pass end to end, once the network side above is in place
+- [ ] Enable FreeRADIUS accounting (`accounting { sql }` in the site config) and the UniFi SSID RADIUS profile's Accounting toggle (port 1813, same shared secret as auth), so Section 16.6's Session Log shows real sessions - the panel code alone shows nothing until this network-side step is done
 
 ## 21. Acceptance Testing (Phase 1)
 
@@ -594,6 +616,7 @@ Both manual end-to-end acceptance and automated tests are required. The manual l
 8. From a device on VLAN300, attempt to reach a device on VLAN301 and the OPNsense management interface, and confirm both are blocked per Section 10.
 9. Run a DNS leak test from a connected device and confirm queries follow the design chosen in Section 11.
 10. Confirm every action in tests 1 to 6 produced a corresponding row in `admin_log` (Section 17).
+11. Once FreeRADIUS accounting is enabled (Section 20), reconnect a device and confirm it appears in the Session Log (Section 16.6) as Connected, then disconnect it and confirm it flips to Disconnected - `admin_log` (test 10) and the Session Log are separate data sources (admin actions vs. FreeRADIUS accounting) and both should be checked.
 
 Helper commands for tests 3, 7, and 9: `wg show` on OPNsense (tunnel and handshake state), `curl -s ifconfig.me` from a client on each VLAN (egress IP), and `radtest <user> <pass> 127.0.0.1 0 <secret>` on the FreeRADIUS host (auth and returned VLAN attribute).
 
@@ -605,7 +628,7 @@ Helper commands for tests 3, 7, and 9: `wg show` on OPNsense (tunnel and handsha
 
 ## 22. Explicitly Out of Scope (Phase 1)
 
-- RADIUS accounting / device activity logs
+- ~~RADIUS accounting / device activity logs~~ **Pulled into Phase 1, 2026-07-27, client request** - see Section 16.6. Live, OPNsense-API-verified egress IP per session remains Phase 2 (Section 16.6 ships a manual reference instead).
 - WireGuard health monitoring dashboard (manual checks only in Phase 1, per Section 13)
 - Multi-admin roles / permissions
 - Automated OPNsense provisioning via API/scripting (manual config for the initial 5 to 10 tunnels, per Section 9; automation is the Section 19 Phase 2 workflow)
@@ -633,6 +656,7 @@ This is the single most sensitive boundary in the codebase. The mapping between 
 - Redact secrets (PSK, keys, shared secret) from all logs and error output.
 - If the stack is Laravel: run Laravel Pint and Larastan clean before every commit, declare `strict_types=1`, and use typed signatures and native enums for fixed sets like status.
 - Keep a short ADR note in `docs/` for any decision that changes the data model, the RADIUS boundary, or the installer contract.
+- Add an entry to `docs/changelog.md` for any user-visible change (new panel feature, changed behavior, fixed bug that affected a real user) - this is what happened to `docs/installation-guide.md`'s "what you can do in the panel" section going stale (fixed 2026-07-27): the doc existed but nothing prompted updating it when the panel changed underneath it.
 
 ### 23.3 Never do
 

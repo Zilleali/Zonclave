@@ -49,6 +49,41 @@
         border-radius: var(--zc-radius-lg) !important;
     }
 
+    /* Scrollbars: the default OS/browser scrollbar (light gray on Windows
+       Chromium) reads as a jarring, generic strip against this near-black
+       theme (client feedback 2026-07-28) - a slim, translucent, dark-aware
+       bar instead. Firefox via scrollbar-width/-color, everything else via
+       the ::-webkit-scrollbar family; both are needed since neither covers
+       every engine. */
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: oklch(1 0 0 / 18%) transparent;
+    }
+
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background-color: oklch(1 0 0 / 18%);
+        border-radius: 999px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background-color: oklch(1 0 0 / 32%);
+    }
+
+    ::-webkit-scrollbar-corner {
+        background: transparent;
+    }
+
     /* Sidebar: pill-style active item, matching the MUI minimal-ui look. */
     .fi-sidebar {
         background-color: var(--zc-bg) !important;

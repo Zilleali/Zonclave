@@ -38,6 +38,11 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->darkMode(true, isForced: true)
             ->sidebarCollapsibleOnDesktop()
+            // Filament's own default (20rem) - client feedback 2026-07-28,
+            // sidebar was taking up too much of the screen. Trimmed to
+            // 15rem, still comfortable for the longest current label
+            // ("Tunnel Egress IPs") without wrapping.
+            ->sidebarWidth('15rem')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([

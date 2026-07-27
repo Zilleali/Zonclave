@@ -19,6 +19,7 @@ enum AdminLogAction: string
     case PpskDisabled = 'ppsk_disabled';
     case PpskDeleted = 'ppsk_deleted';
     case PpskPasswordRegenerated = 'ppsk_password_regenerated';
+    case TunnelEgressIpUpdated = 'tunnel_egress_ip_updated';
 
     public function label(): string
     {
@@ -31,6 +32,7 @@ enum AdminLogAction: string
             self::PpskDisabled => 'PPSK disabled',
             self::PpskDeleted => 'PPSK deleted',
             self::PpskPasswordRegenerated => 'PPSK password regenerated',
+            self::TunnelEgressIpUpdated => 'Tunnel egress IP updated',
         };
     }
 
@@ -57,6 +59,7 @@ enum AdminLogAction: string
             self::PpskDisabled => 'heroicon-o-pause-circle',
             self::PpskDeleted => 'heroicon-o-trash',
             self::PpskPasswordRegenerated => 'heroicon-o-arrow-path',
+            self::TunnelEgressIpUpdated => 'heroicon-o-globe-alt',
         };
     }
 }

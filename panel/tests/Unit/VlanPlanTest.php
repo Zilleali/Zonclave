@@ -5,13 +5,19 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use App\Domain\VlanPlan;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use Tests\TestCase;
 
 // Section 5 formula: 10.30.X.0/24 where X = VLAN - 300, names per
-// Section 6. Uses the app container for config, hence Tests\TestCase.
+// Section 6. Which VLANs are provisioned now lives in the provisioned_vlans
+// table (Section 16.5), seeded from config('zonclave.vlan_min'/'vlan_max')
+// by its migration - RefreshDatabase gives every test the default 300-304
+// range, matching what these assertions have always expected.
 class VlanPlanTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_derives_plan_for_vlan_300(): void
     {
         $this->assertSame([

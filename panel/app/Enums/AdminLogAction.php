@@ -20,6 +20,8 @@ enum AdminLogAction: string
     case PpskDeleted = 'ppsk_deleted';
     case PpskPasswordRegenerated = 'ppsk_password_regenerated';
     case TunnelEgressIpUpdated = 'tunnel_egress_ip_updated';
+    case VlanProvisioned = 'vlan_provisioned';
+    case VlanDeprovisioned = 'vlan_deprovisioned';
 
     public function label(): string
     {
@@ -33,13 +35,15 @@ enum AdminLogAction: string
             self::PpskDeleted => 'PPSK deleted',
             self::PpskPasswordRegenerated => 'PPSK password regenerated',
             self::TunnelEgressIpUpdated => 'Tunnel egress IP updated',
+            self::VlanProvisioned => 'VLAN added',
+            self::VlanDeprovisioned => 'VLAN deleted',
         };
     }
 
     public function color(): string
     {
         return match ($this) {
-            self::AdminLoginFailed, self::PpskDeleted => 'danger',
+            self::AdminLoginFailed, self::PpskDeleted, self::VlanDeprovisioned => 'danger',
             self::PpskDisabled => 'warning',
             default => 'success',
         };
@@ -60,6 +64,8 @@ enum AdminLogAction: string
             self::PpskDeleted => 'heroicon-o-trash',
             self::PpskPasswordRegenerated => 'heroicon-o-arrow-path',
             self::TunnelEgressIpUpdated => 'heroicon-o-globe-alt',
+            self::VlanProvisioned => 'heroicon-o-rectangle-group',
+            self::VlanDeprovisioned => 'heroicon-o-trash',
         };
     }
 }

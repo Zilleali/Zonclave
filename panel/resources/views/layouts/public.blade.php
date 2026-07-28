@@ -59,8 +59,12 @@
                 <p>&copy; {{ date('Y') }} Zonclave, a Developer Zon product.</p>
                 <div class="footer-links">
                     <a href="{{ url('/docs') }}">Documentation</a>
+                    <a href="{{ url('/about') }}">About</a>
                     <a href="mailto:zilleali1245@gmail.com?subject=Zonclave%20inquiry">Contact</a>
                 </div>
+            </div>
+            <div class="container footer-socials-row">
+                <x-social-links />
             </div>
         </footer>
     </body>

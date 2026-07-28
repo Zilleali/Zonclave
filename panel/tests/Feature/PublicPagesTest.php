@@ -66,7 +66,17 @@ class PublicPagesTest extends TestCase
         $this->get('/docs/changelog')->assertOk()->assertSee('Changelog');
     }
 
-    public function test_public_pages_do_not_link_to_github_or_the_raw_runbook_file(): void
+    public function test_footer_shows_every_configured_social_link(): void
+    {
+        $html = $this->get('/')->getContent();
+        $this->assertIsString($html);
+
+        foreach (config('socials') as $social) {
+            $this->assertStringContainsString($social['url'], $html);
+        }
+    }
+
+    public function test_public_pages_do_not_link_to_the_source_repository_or_the_raw_runbook_file(): void
     {
         // Section 20/25.3-style guardrail: this deployment's real site
         // detail is deliberately published on /docs/site-configuration and
@@ -78,6 +88,13 @@ class PublicPagesTest extends TestCase
         // naming the runbook, same as it already names CLAUDE.md elsewhere)
         // is fine - App\Support\DocsMarkdownRenderer strips the href but
         // intentionally leaves the surrounding sentence readable.
+        //
+        // Narrowed from a blanket "no github.com href at all" check
+        // (2026-07-28) once a legitimate personal GitHub profile link
+        // (config/socials.php, github.com/zilleali - a profile, not the
+        // repo) became a deliberate part of every public page's footer.
+        // The actual thing this guards against is the *repository* path
+        // specifically, case-insensitive since GitHub's own routing is.
         foreach ([
             '/', '/about', '/docs', '/docs/installation-guide', '/docs/commands-reference',
             '/docs/opnsense-configuration', '/docs/site-configuration', '/docs/troubleshooting',
@@ -90,7 +107,7 @@ class PublicPagesTest extends TestCase
             $hrefs = $matches[1];
 
             foreach ($hrefs as $href) {
-                $this->assertStringNotContainsString('github.com', $href, "{$url} links to github.com ({$href})");
+                $this->assertStringNotContainsString('zilleali/zonclave', strtolower($href), "{$url} links to the source repository ({$href})");
                 $this->assertStringNotContainsString('runbook/', $href, "{$url} links to the raw runbook file ({$href})");
             }
         }

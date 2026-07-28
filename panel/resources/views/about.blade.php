@@ -58,6 +58,8 @@
                 <span class="skill-pill secondary">UniFi</span>
             </div>
 
+            <x-social-links />
+
             <div class="hero-actions">
                 <a href="mailto:zilleali1245@gmail.com?subject=Zonclave%20inquiry" class="btn btn-primary">Get in touch</a>
                 <a href="{{ url('/') }}" class="btn btn-secondary">See Zonclave</a>

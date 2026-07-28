@@ -4,6 +4,11 @@ What changed, and when. Newest first. The topmost entry is the current version -
 
 Version numbers are `0.x` on purpose: Phase 1 (CLAUDE.md's own definition of done) hasn't fully signed off yet - see the still-open items in CLAUDE.md Section 20 and the acceptance tests in Section 21.1. `1.0.0` is reserved for when that full pass is complete.
 
+## 0.6.5 - 2026-07-28
+
+- Added an **About Developer** page inside the admin panel itself (bottom of the sidebar) - the same Developer & Network Engineer profile as the public `/about` page, without leaving the panel.
+- Added social links (LinkedIn, GitHub, X, Pinterest, Fiverr, Google Business, TikTok, personal website) to the public About page, the public site footer, and the new in-panel About page.
+
 ## 0.6.4 - 2026-07-28
 
 - The light theme's shadow is now noticeably darker and stronger - the first pass read as too faint to look properly "elevated."

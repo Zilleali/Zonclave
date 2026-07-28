@@ -106,7 +106,11 @@ A read-only history: every admin login (success or failure), and every PPSK crea
 
 Change the admin account's own password. The email address is locked read-only, since there's only ever one admin account in Phase 1 and nothing to reconcile a changed email against.
 
-## 9. Something looks wrong - where to check next
+## 9. About Developer
+
+At the bottom of the sidebar - a static profile page (Developer & Network Engineer background, skills, and social links) mirroring the public `/about` page, so there's no need to leave the panel to find them. Nothing here is editable or configuration-related; it's attribution, not a working screen.
+
+## 10. Something looks wrong - where to check next
 
 | Symptom | Likely first thing to check |
 | --- | --- |

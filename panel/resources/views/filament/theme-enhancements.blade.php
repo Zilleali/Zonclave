@@ -415,6 +415,163 @@
         color: #94a3b8;
     }
 
+    /* "About Developer" page (App\Filament\Pages\AboutDeveloper, client
+       request 2026-07-28) - in-panel counterpart to the public /about
+       page, same eye-catching gradient treatment adapted to the admin
+       panel's own --zc-*/--fi-color-primary-* variables rather than the
+       public site's separate --accent/--secondary palette. */
+    .zc-about-hero {
+        text-align: center;
+        max-width: 40rem;
+        margin: 0 auto;
+    }
+
+    .zc-about-avatar {
+        width: 5rem;
+        height: 5rem;
+        margin: 0 auto;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: white;
+        background: linear-gradient(135deg, var(--fi-color-primary-400, #38bdf8) 0%, #34d399 100%);
+        box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.15), 0 20px 40px -12px rgba(56, 189, 248, 0.5);
+    }
+
+    .zc-about-name {
+        margin-top: 1.25rem;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--zc-text-strong);
+    }
+
+    .zc-about-role {
+        margin-top: 0.25rem;
+        font-size: 1rem;
+        font-weight: 600;
+        background: linear-gradient(90deg, var(--fi-color-primary-400, #38bdf8), #34d399);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+
+    .zc-about-tagline {
+        margin-top: 0.5rem;
+        color: var(--zc-text-muted);
+    }
+
+    .zc-about-columns {
+        margin-top: 2.5rem;
+        display: grid;
+        gap: 1.5rem;
+        grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 768px) {
+        .zc-about-columns { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .zc-about-col {
+        border-radius: var(--zc-radius-md);
+        border: 1px solid var(--zc-border);
+        background-color: var(--zc-surface);
+        padding: 1.5rem;
+        transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .zc-about-col:hover {
+        transform: translateY(-2px);
+    }
+
+    .zc-about-col--accent:hover {
+        border-color: rgba(56, 189, 248, 0.45);
+    }
+
+    .zc-about-col--secondary:hover {
+        border-color: rgba(52, 211, 153, 0.45);
+    }
+
+    .zc-about-col h3 {
+        margin: 0;
+        font-size: 1rem;
+        color: var(--zc-text-strong);
+    }
+
+    .zc-about-col p {
+        margin-top: 0.5rem;
+        font-size: 0.875rem;
+        color: var(--zc-text-muted);
+    }
+
+    .zc-about-bio {
+        margin-top: 2rem;
+        max-width: 40rem;
+        margin-inline: auto;
+        text-align: center;
+        color: var(--zc-text-muted);
+    }
+
+    .zc-about-skills {
+        margin-top: 2rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: center;
+    }
+
+    .zc-skill-pill {
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        background-color: rgba(56, 189, 248, 0.1);
+        color: #0284c7;
+    }
+
+    .dark .zc-skill-pill {
+        color: #7dd3fc;
+    }
+
+    .zc-skill-pill--secondary {
+        border-color: rgba(52, 211, 153, 0.3);
+        background-color: rgba(52, 211, 153, 0.1);
+        color: #059669;
+    }
+
+    .dark .zc-skill-pill--secondary {
+        color: #6ee7b7;
+    }
+
+    .zc-social-links {
+        margin-top: 2rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: center;
+    }
+
+    .zc-social-pill {
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border: 1px solid var(--zc-border);
+        background-color: var(--zc-surface-hover);
+        color: var(--zc-text-strong);
+        text-decoration: none;
+        transition: border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+    }
+
+    .zc-social-pill:hover {
+        border-color: var(--fi-color-primary-400, #38bdf8);
+        color: var(--fi-color-primary-400, #38bdf8);
+        transform: translateY(-2px);
+    }
+
     @media (prefers-reduced-motion: reduce) {
 
         .fi-section,

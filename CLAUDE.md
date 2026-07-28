@@ -6,7 +6,7 @@
 **Status:** Phase 1 - In Progress (dev environment active)
 **Client:** Sancover
 **Developer & Network Engineer:** ZILL E ALI (Developer Zon)
-**Last updated:** 2026-07-28 (full database backups, live "connected now" count on the Network Topology dashboard, Sessions split into Active/Stale/Inactive sub-pages, manageable table columns everywhere, light theme + dashboard widget glass style, dedicated About page, animated How It Works, in-panel About Developer page + social links, sidebar reordered into Sessions/System groups)
+**Last updated:** 2026-07-28 (architecture reversal - each location now runs its own independent Zonclave node, not one shared central server; Location 2 build started on `SancoverPC-5`, Section 27. Also this same date: panel UI/UX pass - backups, Sessions sub-pages, manageable columns, light theme, About pages + social links, sidebar reorder - see Section 16's trailing subsections for the full list)
 
 This file is the single source of truth for the project. Anyone picking up implementation work, human or AI-assisted, should read it in full before writing any config or code. Section numbers are stable. Do not renumber sections 1 to 22, since the kickoff prompt references them directly. Add new material as new trailing sections.
 
@@ -69,7 +69,9 @@ Note: client has 4 x Protectli FW6E units total. The 4th is a spare or future lo
 | Access Points | 5 x UniFi U6+ (confirmed at Kelder: AP-Stairs, AP-Back, AP-Room, U6-UK1, U6-UK2) | All healthy and up to date |
 | Wi-Fi Controller | UniFi Cloud Key Gen2 Plus (UCK-G2-Plus) | Manages all APs, central |
 
-### 3.3 Shared infrastructure (central, serves all locations)
+### 3.3 Location 1 (Office SancoMedia Kelder) - Zonclave server hardware
+
+**Architecture decision reversed 2026-07-28 (client request):** this section's original heading called this "shared infrastructure, central, serves all locations" - Phase 1 originally assumed one single Zonclave server (FreeRADIUS + panel + PostgreSQL + the `ppsk_groups` registry) at Kelder, with Locations 2 and 3's OPNsense routers and APs reaching back to it. That assumption is now reversed: **each location runs its own independent Zonclave node** - its own FreeRADIUS, its own panel, its own PostgreSQL database, its own PPSK registry, serving only that location's own APs and VLANs. No cross-site RADIUS traffic, no dependency on Kelder staying up for Location 2 or 3 to authenticate their own devices. This matches how VLANs and WireGuard tunnels were already designed to replicate identically per router (Section 5/6) - the Zonclave server itself just hadn't been extended to the same per-location pattern until now. Confirmed as Location 2's build begins on a second server, `SancoverPC-5` (Section 27) - the hardware below is Kelder's own node specifically, not shared infrastructure.
 
 | Component | Item | Notes |
 | --- | --- | --- |
@@ -87,7 +89,7 @@ Note: client has 4 x Protectli FW6E units total. The 4th is a spare or future lo
 
 The Beelink is running Windows 11 as its host OS, not bare metal Ubuntu as originally planned. The Zonclave Ubuntu server runs as a Hyper-V VM. This is a production deployment decision made by the client and is acceptable with the following three Windows host settings locked in:
 
-1. Windows automatic reboot on update: **must be disabled** (a surprise reboot at 3am drops FreeRADIUS and takes down all PPSK authentication at all three locations)
+1. Windows automatic reboot on update: **must be disabled** (a surprise reboot at 3am drops FreeRADIUS and takes down all PPSK authentication at this location - written when Phase 1 still assumed one shared server for all locations, per the reversal noted above; now scoped to this location only, but the setting still matters exactly as much per-node)
 2. VM auto-start on Windows boot: **must be set to Start** (`AutomaticStartAction = Start`) so the VM comes back after any planned or unplanned Windows reboot
 3. Sleep and hibernate: **must be set to Never** (power plan: High Performance or equivalent)
 
@@ -104,7 +106,7 @@ powercfg /query SCHEME_CURRENT SUB_SLEEP
 Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" 2>$null
 ```
 
-### 3.4 Management network (server access)
+### 3.4 Location 1 (Kelder) - Management network (server access)
 
 **Decision recorded 2026-07-14 (supersedes the VLAN 205 decision below):** checking the live OPNsense config at Office SancoMedia Kelder confirmed the VLAN/trunk work described below was never actually built - OPNsense's LAN interface is still on its factory network, and the switch, Cloud Key, and APs all sit there too. Given that, Phase 1 at Kelder skips a dedicated management VLAN entirely: the Zonclave server, switch, Cloud Key, and APs all stay on the existing flat LAN. RADIUS (UDP 1812/1813) and the panel (HTTP) don't require VLAN isolation to function, and the devices sharing this flat LAN are the office's own existing hardware, not the PPSK guest devices the isolation in Section 10 exists to contain - those stay on VLAN 300-304 exactly as designed, unaffected by this change. This is a Kelder-specific simplification, not a reversal of the PPSK VLAN mechanism itself.
 
@@ -665,6 +667,7 @@ This is only feasible cleanly because of the service-layer separation in Section
 - [ ] Full Section 21 acceptance test pass end to end, once the network side above is in place
 - [ ] Enable FreeRADIUS accounting (`accounting { sql }` in the site config) and the UniFi SSID RADIUS profile's Accounting toggle (port 1813, same shared secret as auth), so Section 16.6's Session Log shows real sessions - the panel code alone shows nothing until this network-side step is done
 - [ ] Add the Laravel scheduler crontab entry to the already-live Kelder node (Section 16.8's backup feature needs it; new installs get it automatically): `( sudo crontab -u www-data -l 2>/dev/null; echo "* * * * * cd /opt/zonclave && php artisan schedule:run >> /dev/null 2>&1" ) | sudo crontab -u www-data -`
+- [ ] Location 2 Zonclave node build on `SancoverPC-5` - in progress, see Section 27 for hardware/status tracking and the full still-open checklist
 
 ## 21. Acceptance Testing (Phase 1)
 
@@ -1168,3 +1171,41 @@ Network side: repeat runbook Section 3 per new VLAN (now including the
 2026-07-22 finding warnings), plus UniFi trunk/AP tagging for 305-308 and
 the DNS redirect rules. Monitor IPs must be unique - continue with e.g.
 `9.9.9.9`, `149.112.112.112`, `208.67.222.222`, `208.67.220.220`.
+
+## 27. Location 2 Deployment (started 2026-07-28)
+
+Build started on the second location's Zonclave server, using the exact
+same installer path validated at Kelder: `installer/hyperv-ubuntu22.04-setup.md`
+and `installer/install-ubuntu22.04.sh`. No new installer work needed - this
+section exists to track this specific deployment's own hardware and
+progress, the same way Section 26 tracks Kelder's.
+
+**Architecture note:** this is the first deployment built after the
+Section 3.3 reversal - each location gets its own fully independent
+Zonclave node (own FreeRADIUS, panel, PostgreSQL, PPSK registry), not a
+shared server reached over a cross-site link. Location 2's server has no
+dependency on Kelder's `SancoverPC-4` staying up, and vice versa.
+
+### 27.1 Server hardware
+
+| Item | Value |
+| --- | --- |
+| Host machine | `SancoverPC-5` |
+| Host OS | TBD - confirm Windows version and whether the same three Hyper-V host settings (Section 3.3: no auto-reboot, VM auto-start, no sleep) get applied here too before going live |
+| Hardware specs | TBD |
+| Host static IP | `192.168.1.5/24` (confirmed 2026-07-28) |
+| VM name / OS | Zonclave / Ubuntu 22.04 LTS (planned, matching Section 24.4's single supported target) |
+| VM static IP (External Interface) | `192.168.1.4/24` (confirmed 2026-07-28) |
+
+Both addresses are low in the `192.168.1.0/24` range, likely below where Location 2's DHCP pool actually starts - but this needs confirming against Location 2's own OPNsense DHCP scope, not assumed safe just because it worked out that way. Kelder's own static IPs (`192.168.1.174`/`.175`) turned out to sit *inside* its DHCP pool despite being deliberately chosen (Section 3.4), only caught because someone checked - don't skip that check here just because `.4`/`.5` look obviously outside a typical pool.
+
+### 27.2 Still open
+
+- [ ] Confirm `SancoverPC-5`'s actual hardware spec and host OS
+- [ ] Enable Hyper-V, create the External virtual switch bound to Location 2's real LAN NIC (guide Section 1-2)
+- [ ] Verify `192.168.1.4` and `192.168.1.5` actually sit outside Location 2's configured DHCP pool (check OPNsense's Services > DHCPv4 > [LAN] range) - if either falls inside it, add static DHCP mappings keyed to MAC address, same fix Kelder needed (Section 3.4)
+- [ ] Create and provision the Ubuntu 22.04 VM at `192.168.1.4` (guide Section 3-7)
+- [ ] Run `install-ubuntu22.04.sh`, confirm FreeRADIUS + panel come up clean (guide Section 8-11)
+- [ ] Apply the same three Windows host hardening settings as Kelder (Section 3.3) once the host OS is confirmed
+- [ ] OPNsense/UniFi manual config at Location 2 - VLANs 300-304 (or continue the open-ended block per Section 5, decide fresh vs. matching Kelder's exact VLAN IDs), WireGuard tunnels using Location 2's own peer configs (Section 20's still-open item on confirming these are ready), firewall allow/block rules per Sections 9-12
+- [ ] Full Section 21 acceptance test pass for Location 2, independent of Kelder's own pass (Section 26.6 item 5)

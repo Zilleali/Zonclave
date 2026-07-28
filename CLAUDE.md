@@ -6,7 +6,7 @@
 **Status:** Phase 1 - In Progress (dev environment active)
 **Client:** Sancover
 **Developer & Network Engineer:** ZILL E ALI (Developer Zon)
-**Last updated:** 2026-07-28 (full database backups, live "connected now" count on the Network Topology dashboard)
+**Last updated:** 2026-07-28 (full database backups, live "connected now" count on the Network Topology dashboard, Sessions split into Active/Stale/Inactive sub-pages, manageable table columns everywhere)
 
 This file is the single source of truth for the project. Anyone picking up implementation work, human or AI-assisted, should read it in full before writing any config or code. Section numbers are stable. Do not renumber sections 1 to 22, since the kickoff prompt references them directly. Add new material as new trailing sections.
 
@@ -483,6 +483,7 @@ This turned out cheaper than the original Phase 2 framing assumed: `radacct` alr
 - **Stale-session heuristic:** UniFi does not always send a clean Acct-Stop when a device just dies or loses power, so a session with no stop record would otherwise show as "Connected" forever. A session reads as **Stale** once its last known activity (`acctupdatetime`, falling back to `acctstarttime`) is more than 15 minutes old with no stop recorded; genuinely closed sessions (`acctstoptime` set) always read as **Disconnected**.
 - **Egress IP is deliberately not live.** There is no OPNsense API integration yet (Section 19 is still Phase 2), so the panel has no way to ask a tunnel what public IP it's using right now. Instead, `App\Filament\Resources\TunnelEgressIps` is a small manually-maintained reference: one row per currently-provisioned VLAN, admin-edited whenever a tunnel's actual residential IP is confirmed (the same data already tracked by hand in Section 26.10/26.11's tables). The Session Log shows it labeled "known egress IP," explicitly not a live per-session measurement - do not present it as verified traffic routing.
 - **Network-side prerequisite, still open:** the panel code alone shows no real sessions until FreeRADIUS accounting is actually enabled (the `accounting { sql }` block in the site config, matching the same `use_tunneled_reply`-style per-host config class of fix as Section 26.7) and the UniFi SSID's RADIUS profile has Accounting turned on (port 1813, same shared secret as auth). See Section 20's open items.
+- **Status sub-pages** (added 2026-07-28, client request): the sidebar groups four pages under one **Sessions** heading - **All Sessions** (`App\Filament\Resources\SessionLogs`, unfiltered), **Active PPSK Users** (`App\Filament\Resources\ActivePpskUsers`, Connected only), **Stale Sessions** (`App\Filament\Resources\StaleSessions`, Stale only - the client explicitly asked for Stale to get its own page rather than being folded into either Active or Inactive, since a stale session is a distinct, actionable state - usually a dead or out-of-range device), and **Inactive PPSK Users** (`App\Filament\Resources\InactivePpskUsers`, Disconnected only). All four are the same `radacct` data and the same `App\Filament\Resources\SessionLogs\Tables\SessionLogsTable` definition - the three scoped resources just pass a `SessionStatus` into `SessionLogsTable::configure()`, which applies it via `RadiusAccounting::scopeWithStatus()` (a SQL mirror of `effectiveStatus()`, kept in lockstep by test coverage). Active and Stale show a live count badge in the sidebar (small, actionable numbers); Inactive deliberately does not, since a full historical disconnected count is unbounded and would just be sidebar noise, not a signal.
 
 #### 16.8 Full database backups (added 2026-07-28, client request)
 
@@ -515,6 +516,12 @@ No backup existed before this - if the server were lost, the entire PPSK registr
 - **Still open, one-time manual step:** this is the first Laravel-scheduled task in this app, so it needs the one-time scheduler crontab entry. New installs get it automatically (`installer/install-ubuntu22.04.sh`'s `configure_services()` stage); the already-live Kelder node needs it added once by hand - see Section 20.
 
 **Network Topology enhancement (same date):** the Dashboard's topology diagram (`App\Filament\Widgets\NetworkTopologyWidget`) now also shows a "connected now" count per VLAN, using the same "open session" definition (`whereNull('acctstoptime')`) the Sessions page's own filter already uses - one more snapshot-at-page-load data point, not a new polling surface (Section 23.3 is unaffected).
+
+#### 16.9 Manageable table columns (added 2026-07-28, client request)
+
+Every table in the panel (PPSK Groups, all four Sessions pages, VLANs, Tunnel Egress IPs, Admin Log, Backups) now lets the admin hide columns they don't need, via Filament's built-in column-toggle feature (`->toggleable()` on each `TextColumn`). No custom code beyond that call - Filament renders the toggle control in the table header automatically once any column is toggleable, and persists the choice in the session per list page (keyed by the Livewire component class), so it's remembered across visits without any new database table or admin-preference model.
+
+Each table keeps exactly one column non-toggleable, chosen as that table's own natural row identity, so a row can never become fully anonymous no matter what an admin hides: `label` on PPSK Groups, `ppskGroup.label` (PPSK) on every Sessions page, `vlan_id` on VLANs and Tunnel Egress IPs, `ts` (When) on the Admin Log, and `filename` on Backups.
 
 ### Phase 2 additions to the panel (not built in Phase 1, listed for planning only)
 

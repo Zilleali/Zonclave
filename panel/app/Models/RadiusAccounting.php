@@ -94,6 +94,60 @@ class RadiusAccounting extends Model
         return $query->whereNull('acctstoptime');
     }
 
+    // Query-level mirror of effectiveStatus() below, so the Active/Stale/
+    // Inactive sub-pages (CLAUDE.md Section 16.6) filter at the database
+    // instead of loading every session and filtering in PHP. Must stay in
+    // lockstep with effectiveStatus() - both encode the same "last activity
+    // within 15 minutes, no stop recorded" rule.
+    /**
+     * @param  Builder<RadiusAccounting>  $query
+     * @return Builder<RadiusAccounting>
+     */
+    public function scopeWithStatus(Builder $query, SessionStatus $status): Builder
+    {
+        return self::applyStatusFilter($query, $status);
+    }
+
+    // Plain static method, not a magic-resolved local scope, so it can be
+    // called directly on the un-generic Builder Filament's own
+    // modifyQueryUsing() closures receive (App\Filament\Resources\SessionLogs\
+    // Tables\SessionLogsTable) - PHPStan/Larastan can only resolve a scope
+    // like ->withStatus() through the "->" magic call when it knows the
+    // Builder's model generic, which Filament's bare Closure type doesn't
+    // carry.
+    /**
+     * @param  Builder<RadiusAccounting>  $query
+     * @return Builder<RadiusAccounting>
+     */
+    public static function applyStatusFilter(Builder $query, SessionStatus $status): Builder
+    {
+        if ($status === SessionStatus::Disconnected) {
+            return $query->whereNotNull('acctstoptime');
+        }
+
+        $cutoff = now()->subMinutes(self::STALE_AFTER_MINUTES);
+
+        if ($status === SessionStatus::Connected) {
+            return $query->whereNull('acctstoptime')->where(function (Builder $q) use ($cutoff): void {
+                $q->where(function (Builder $q2): void {
+                    $q2->whereNull('acctupdatetime')->whereNull('acctstarttime');
+                })->orWhere(function (Builder $q2) use ($cutoff): void {
+                    $q2->whereNotNull('acctupdatetime')->where('acctupdatetime', '>=', $cutoff);
+                })->orWhere(function (Builder $q2) use ($cutoff): void {
+                    $q2->whereNull('acctupdatetime')->whereNotNull('acctstarttime')->where('acctstarttime', '>=', $cutoff);
+                });
+            });
+        }
+
+        return $query->whereNull('acctstoptime')->where(function (Builder $q) use ($cutoff): void {
+            $q->where(function (Builder $q2) use ($cutoff): void {
+                $q2->whereNotNull('acctupdatetime')->where('acctupdatetime', '<', $cutoff);
+            })->orWhere(function (Builder $q2) use ($cutoff): void {
+                $q2->whereNull('acctupdatetime')->whereNotNull('acctstarttime')->where('acctstarttime', '<', $cutoff);
+            });
+        });
+    }
+
     /** @return BelongsTo<PpskGroup, $this> */
     public function ppskGroup(): BelongsTo
     {

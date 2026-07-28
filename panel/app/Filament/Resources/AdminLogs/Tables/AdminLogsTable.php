@@ -33,17 +33,20 @@ class AdminLogsTable
                     ->badge()
                     ->icon(fn (string $state): string => AdminLogAction::tryFrom($state)?->icon() ?? 'heroicon-o-question-mark-circle')
                     ->formatStateUsing(fn (string $state): string => AdminLogAction::tryFrom($state)?->label() ?? $state)
-                    ->color(fn (string $state): string => AdminLogAction::tryFrom($state)?->color() ?? 'gray'),
+                    ->color(fn (string $state): string => AdminLogAction::tryFrom($state)?->color() ?? 'gray')
+                    ->toggleable(),
                 TextColumn::make('admin_user')
                     ->label('Admin')
                     ->icon('heroicon-o-user-circle')
                     ->placeholder('-')
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(),
                 TextColumn::make('detail')
                     ->label('Detail')
                     ->placeholder('-')
                     ->searchable()
-                    ->wrap(),
+                    ->wrap()
+                    ->toggleable(),
             ])
             ->filters([
                 SelectFilter::make('action')->options(

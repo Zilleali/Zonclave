@@ -4,6 +4,12 @@ What changed, and when. Newest first. The topmost entry is the current version -
 
 Version numbers are `0.x` on purpose: Phase 1 (CLAUDE.md's own definition of done) hasn't fully signed off yet - see the still-open items in CLAUDE.md Section 20 and the acceptance tests in Section 21.1. `1.0.0` is reserved for when that full pass is complete.
 
+## 0.6.2 - 2026-07-28
+
+- The Sessions area is now split into four pages under one "Sessions" group: **All Sessions**, **Active PPSK Users** (connected right now), **Stale Sessions** (no clean disconnect, but gone quiet for 15+ minutes), and **Inactive PPSK Users** (cleanly disconnected). Active and Stale show a live count badge in the sidebar.
+- Every table in the panel (PPSK Groups, all four Sessions pages, VLANs, Tunnel Egress IPs, Admin Log, Backups) now has a **column visibility toggle**, so you can hide columns you don't need - your choice is remembered per page.
+- Widened the sidebar slightly so the new, longer Sessions page names display in full instead of being cut off with an ellipsis.
+
 ## 0.6.1 - 2026-07-28
 
 - A backup is now also taken automatically whenever a PPSK or VLAN is created or deleted (not just on the daily schedule), so a meaningful change is never more than a few minutes from a fresh safety copy.

@@ -28,18 +28,22 @@ class TunnelEgressIpsTable
                 TextColumn::make('vlan_id')->label('VLAN')->sortable(),
                 TextColumn::make('wireguard_interface')
                     ->label('WireGuard tunnel')
-                    ->state(fn (TunnelEgressIp $record): string => VlanPlan::forVlan($record->vlan_id)['wireguard_interface']),
+                    ->state(fn (TunnelEgressIp $record): string => VlanPlan::forVlan($record->vlan_id)['wireguard_interface'])
+                    ->toggleable(),
                 TextColumn::make('egress_ip')
                     ->label('Known egress IP')
-                    ->placeholder('Not set'),
+                    ->placeholder('Not set')
+                    ->toggleable(),
                 TextColumn::make('checked_at')
                     ->label('Last confirmed')
                     ->dateTime('M j, Y H:i')
                     ->placeholder('Never')
-                    ->description(fn (?CarbonInterface $state): ?string => $state?->diffForHumans()),
+                    ->description(fn (?CarbonInterface $state): ?string => $state?->diffForHumans())
+                    ->toggleable(),
                 TextColumn::make('updated_by')
                     ->label('Confirmed by')
-                    ->placeholder('-'),
+                    ->placeholder('-')
+                    ->toggleable(),
             ])
             ->recordActions([
                 EditAction::make()

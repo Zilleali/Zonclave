@@ -40,9 +40,10 @@ class AdminPanelProvider extends PanelProvider
             ->sidebarCollapsibleOnDesktop()
             // Filament's own default (20rem) - client feedback 2026-07-28,
             // sidebar was taking up too much of the screen. Trimmed to
-            // 15rem, still comfortable for the longest current label
-            // ("Tunnel Egress IPs") without wrapping.
-            ->sidebarWidth('15rem')
+            // 15rem, then widened slightly to 16.5rem the same day once the
+            // Sessions sub-pages shipped - "Inactive PPSK Users" (the new
+            // longest label) was truncating with an ellipsis at 15rem.
+            ->sidebarWidth('16.5rem')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([

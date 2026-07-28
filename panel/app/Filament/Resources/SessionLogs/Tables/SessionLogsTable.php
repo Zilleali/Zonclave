@@ -23,14 +23,26 @@ use Illuminate\Support\Number;
 // on-demand loads only, same as the PPSK list and the admin log.
 class SessionLogsTable
 {
-    public static function configure(Table $table): Table
+    // $scope narrows this to one of the Sessions sub-pages (Active PPSK
+    // Users / Inactive PPSK Users / Stale Sessions) - null means the
+    // unfiltered "All Sessions" view. Same table definition either way, so
+    // the four pages can never drift out of sync with each other; only the
+    // underlying query differs (RadiusAccounting::scopeWithStatus()).
+    public static function configure(Table $table, ?SessionStatus $scope = null): Table
     {
         // Computed once per page load, not per row - avoids an N+1 query
         // across every session for what is, at most, a few dozen VLANs.
         $egressIps = TunnelEgressIp::query()->pluck('egress_ip', 'vlan_id');
 
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('ppskGroup'))
+            // Filament's modifyQueryUsing() hands back a bare, un-generic
+            // Builder, so the withStatus() local scope (which needs to know
+            // the model to magically resolve) can't be called on it directly
+            // here - RadiusAccounting::applyStatusFilter() is the same logic
+            // exposed as a plain static method instead, callable regardless.
+            ->modifyQueryUsing(fn (Builder $query): Builder => $scope === null
+                ? $query->with('ppskGroup')
+                : RadiusAccounting::applyStatusFilter($query->with('ppskGroup'), $scope))
             ->defaultSort('acctstarttime', 'desc')
             ->columns([
                 TextColumn::make('status')
@@ -39,41 +51,49 @@ class SessionLogsTable
                     ->badge()
                     ->icon(fn (string $state): string => SessionStatus::from($state)->icon())
                     ->formatStateUsing(fn (string $state): string => SessionStatus::from($state)->label())
-                    ->color(fn (string $state): string => SessionStatus::from($state)->color()),
+                    ->color(fn (string $state): string => SessionStatus::from($state)->color())
+                    ->toggleable(),
                 TextColumn::make('ppskGroup.label')
                     ->label('PPSK')
                     ->placeholder('(unknown)')
                     ->searchable(),
                 TextColumn::make('username')
                     ->label('RADIUS username')
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(),
                 TextColumn::make('vlan')
                     ->label('VLAN')
                     // radacct has no vlan_id of its own (that's a
                     // ppsk_groups/RADIUS-reply concept, not an accounting
                     // one) - derived from the joined PPSK group instead.
-                    ->state(fn (RadiusAccounting $record): ?int => $record->ppskGroup?->vlan_id),
+                    ->state(fn (RadiusAccounting $record): ?int => $record->ppskGroup?->vlan_id)
+                    ->toggleable(),
                 TextColumn::make('callingstationid')
                     ->label('Device (MAC)')
-                    ->placeholder('-'),
+                    ->placeholder('-')
+                    ->toggleable(),
                 TextColumn::make('framedipaddress')
                     ->label('Connected from IP')
-                    ->placeholder('-'),
+                    ->placeholder('-')
+                    ->toggleable(),
                 TextColumn::make('egress_ip')
                     ->label('Known egress IP')
                     ->state(fn (RadiusAccounting $record) => $egressIps[$record->ppskGroup?->vlan_id] ?? null)
                     ->placeholder('Not set')
-                    ->tooltip('Last confirmed manually - not a live measurement. Update from the Tunnel Egress IPs page.'),
+                    ->tooltip('Last confirmed manually - not a live measurement. Update from the Tunnel Egress IPs page.')
+                    ->toggleable(),
                 TextColumn::make('acctstarttime')
                     ->label('Connected at')
                     ->dateTime('M j, Y H:i')
                     ->description(fn (?CarbonInterface $state): ?string => $state?->diffForHumans())
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                 TextColumn::make('acctstoptime')
                     ->label('Disconnected at')
                     ->dateTime('M j, Y H:i')
                     ->placeholder('-')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                 TextColumn::make('acctterminatecause')
                     ->label('Disconnect reason')
                     // Raw RADIUS Acct-Terminate-Cause, whatever the AP/
@@ -86,10 +106,12 @@ class SessionLogsTable
                     // received - that absence is itself the signal, see the
                     // Stale status).
                     ->placeholder('-')
-                    ->tooltip('Reported by the access point via RADIUS accounting, not interpreted by Zonclave.'),
+                    ->tooltip('Reported by the access point via RADIUS accounting, not interpreted by Zonclave.')
+                    ->toggleable(),
                 TextColumn::make('duration')
                     ->label('Duration')
-                    ->state(fn (RadiusAccounting $record): string => $record->durationForHumans()),
+                    ->state(fn (RadiusAccounting $record): string => $record->durationForHumans())
+                    ->toggleable(),
                 TextColumn::make('data_used')
                     ->label('Data used')
                     ->state(function (RadiusAccounting $record): ?string {
@@ -99,7 +121,8 @@ class SessionLogsTable
 
                         return Number::fileSize(($record->acctinputoctets ?? 0) + ($record->acctoutputoctets ?? 0));
                     })
-                    ->placeholder('-'),
+                    ->placeholder('-')
+                    ->toggleable(),
             ])
             ->filters([
                 SelectFilter::make('vlan_id')
@@ -117,10 +140,17 @@ class SessionLogsTable
                             ->where('vlan_id', $data['value'])
                             ->pluck('radius_username'));
                     }),
-                Filter::make('open')
-                    ->label('Currently connected only')
-                    ->query(fn (Builder $query): Builder => $query->whereNull('acctstoptime'))
-                    ->toggle(),
+                // Redundant (and potentially self-contradicting) on a
+                // status-scoped sub-page - e.g. "currently connected only"
+                // has nothing left to do on the Inactive PPSK Users page,
+                // which is already scoped to disconnected sessions. Only
+                // shown on the unscoped "All Sessions" view.
+                ...($scope === null ? [
+                    Filter::make('open')
+                        ->label('Currently connected only')
+                        ->query(fn (Builder $query): Builder => $query->whereNull('acctstoptime'))
+                        ->toggle(),
+                ] : []),
             ])
             ->recordActions([])
             ->toolbarActions([]);

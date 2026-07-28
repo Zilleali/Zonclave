@@ -70,4 +70,53 @@ class RadiusAccountingTest extends TestCase
         $this->assertCount(1, $result);
         $this->assertSame($open->radacctid, $result->first()->radacctid);
     }
+
+    // withStatus() (used by the Active/Stale/Inactive PPSK Users sub-pages,
+    // CLAUDE.md Section 16.6) is a SQL mirror of effectiveStatus() above -
+    // this confirms the two never disagree about which bucket a session
+    // falls into, across all three states and the 15-minute boundary.
+    public function test_with_status_connected_matches_effective_status(): void
+    {
+        $connected = $this->makeSession(['acctupdatetime' => now()->subMinutes(2)]);
+        $this->makeSession(['acctupdatetime' => now()->subMinutes(16)]);
+        $this->makeSession(['acctstoptime' => now()]);
+
+        $result = RadiusAccounting::query()->withStatus(SessionStatus::Connected)->get();
+
+        $this->assertCount(1, $result);
+        $this->assertSame($connected->radacctid, $result->first()->radacctid);
+    }
+
+    public function test_with_status_stale_matches_effective_status(): void
+    {
+        $this->makeSession(['acctupdatetime' => now()->subMinutes(2)]);
+        $stale = $this->makeSession(['acctupdatetime' => now()->subMinutes(16)]);
+        $this->makeSession(['acctstoptime' => now()]);
+
+        $result = RadiusAccounting::query()->withStatus(SessionStatus::Stale)->get();
+
+        $this->assertCount(1, $result);
+        $this->assertSame($stale->radacctid, $result->first()->radacctid);
+    }
+
+    public function test_with_status_stale_falls_back_to_start_time_when_no_interim_update_recorded(): void
+    {
+        $stale = $this->makeSession(['acctstarttime' => now()->subMinutes(20), 'acctupdatetime' => null]);
+
+        $result = RadiusAccounting::query()->withStatus(SessionStatus::Stale)->get();
+
+        $this->assertCount(1, $result);
+        $this->assertSame($stale->radacctid, $result->first()->radacctid);
+    }
+
+    public function test_with_status_disconnected_matches_effective_status(): void
+    {
+        $this->makeSession(['acctupdatetime' => now()->subMinutes(2)]);
+        $disconnected = $this->makeSession(['acctstoptime' => now()]);
+
+        $result = RadiusAccounting::query()->withStatus(SessionStatus::Disconnected)->get();
+
+        $this->assertCount(1, $result);
+        $this->assertSame($disconnected->radacctid, $result->first()->radacctid);
+    }
 }

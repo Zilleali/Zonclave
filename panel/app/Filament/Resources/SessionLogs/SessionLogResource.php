@@ -11,6 +11,7 @@ use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 // Read-only connected-device / session history (CLAUDE.md Section 16.6,
 // pulled into Phase 1 2026-07-27). Sourced from FreeRADIUS's own radacct
@@ -26,6 +27,15 @@ class SessionLogResource extends Resource
     protected static ?string $modelLabel = 'session';
 
     protected static ?string $pluralModelLabel = 'Sessions';
+
+    // Grouped in the sidebar with Active PPSK Users / Stale Sessions /
+    // Inactive PPSK Users (CLAUDE.md Section 16.6, client request
+    // 2026-07-28) - this resource is the unfiltered "All Sessions" view,
+    // the other three are RadiusAccounting::scopeWithStatus() slices of the
+    // exact same table.
+    protected static ?string $navigationLabel = 'All Sessions';
+
+    protected static string|UnitEnum|null $navigationGroup = 'Sessions';
 
     protected static ?string $recordTitleAttribute = 'username';
 

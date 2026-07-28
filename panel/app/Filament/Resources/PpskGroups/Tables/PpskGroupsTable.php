@@ -38,9 +38,10 @@ class PpskGroupsTable
                     ->searchable()
                     ->copyable()
                     ->copyMessage('RADIUS username copied')
-                    ->copyMessageDuration(2000),
-                TextColumn::make('vlan_id')->label('VLAN')->sortable(),
-                TextColumn::make('wireguard_interface')->label('WireGuard tunnel'),
+                    ->copyMessageDuration(2000)
+                    ->toggleable(),
+                TextColumn::make('vlan_id')->label('VLAN')->sortable()->toggleable(),
+                TextColumn::make('wireguard_interface')->label('WireGuard tunnel')->toggleable(),
                 TextColumn::make('status')
                     ->badge()
                     ->formatStateUsing(fn (PpskStatus $state): string => $state->label())
@@ -49,8 +50,9 @@ class PpskGroupsTable
                         PpskStatus::Disabled => 'gray',
                         PpskStatus::Provisioning => 'warning',
                         PpskStatus::Error => 'danger',
-                    }),
-                TextColumn::make('created_at')->label('Created')->dateTime()->sortable(),
+                    })
+                    ->toggleable(),
+                TextColumn::make('created_at')->label('Created')->dateTime()->sortable()->toggleable(),
             ])
             ->filters([
                 SelectFilter::make('vlan_id')

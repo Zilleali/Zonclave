@@ -27,12 +27,14 @@ class BackupsTable
                 TextColumn::make('filename')->searchable(),
                 TextColumn::make('size_bytes')
                     ->label('Size')
-                    ->state(fn (Backup $record): string => Number::fileSize($record->size_bytes)),
+                    ->state(fn (Backup $record): string => Number::fileSize($record->size_bytes))
+                    ->toggleable(),
                 TextColumn::make('created_at')
                     ->label('Created')
                     ->dateTime('M j, Y H:i')
                     ->description(fn (CarbonInterface $state): string => $state->diffForHumans())
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
             ])
             ->recordActions([
                 Action::make('download')

@@ -29,19 +29,23 @@ class ProvisionedVlansTable
             ->columns([
                 TextColumn::make('vlan_id')->label('VLAN')->sortable(),
                 TextColumn::make('subnet')
-                    ->state(fn (ProvisionedVlan $record): string => VlanPlan::forVlan($record->vlan_id)['subnet']),
+                    ->state(fn (ProvisionedVlan $record): string => VlanPlan::forVlan($record->vlan_id)['subnet'])
+                    ->toggleable(),
                 TextColumn::make('wireguard_interface')
                     ->label('WireGuard tunnel')
-                    ->state(fn (ProvisionedVlan $record): string => VlanPlan::forVlan($record->vlan_id)['wireguard_interface']),
+                    ->state(fn (ProvisionedVlan $record): string => VlanPlan::forVlan($record->vlan_id)['wireguard_interface'])
+                    ->toggleable(),
                 TextColumn::make('wireguard_gateway')
                     ->label('Gateway')
-                    ->state(fn (ProvisionedVlan $record): string => VlanPlan::forVlan($record->vlan_id)['wireguard_gateway']),
+                    ->state(fn (ProvisionedVlan $record): string => VlanPlan::forVlan($record->vlan_id)['wireguard_gateway'])
+                    ->toggleable(),
                 TextColumn::make('ppsk_count')
                     ->label('PPSKs using it')
                     ->state(fn (ProvisionedVlan $record): int => PpskGroup::query()->where('vlan_id', $record->vlan_id)->count())
                     ->badge()
-                    ->color(fn (int $state): string => $state > 0 ? 'warning' : 'gray'),
-                TextColumn::make('created_at')->label('Added')->dateTime()->sortable(),
+                    ->color(fn (int $state): string => $state > 0 ? 'warning' : 'gray')
+                    ->toggleable(),
+                TextColumn::make('created_at')->label('Added')->dateTime()->sortable()->toggleable(),
             ])
             ->recordActions([
                 DeleteAction::make()

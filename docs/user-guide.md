@@ -4,6 +4,8 @@ A screen-by-screen walkthrough of the Zonclave admin panel, for whoever is actua
 
 Everything here lives behind `/admin` and requires logging in first - none of it is public.
 
+**A cross-cutting feature worth knowing about up front:** every table in the panel has a column-visibility control (usually a small icon near the search box) - hide any column you don't need on a given screen. Your choice is remembered for that page, so it's a one-time setup per table, not something you redo every visit. One column per table is always shown regardless (its main identifying column, e.g. Label on PPSK Groups), so a row can never become unidentifiable.
+
 ## 1. Dashboard
 
 The home page after logging in. A Network Topology diagram shows every provisioned VLAN with its subnet and tunnel name, how many PPSKs are active/disabled on it, and how many devices are connected right now. Below that, stat cards for total, active, and disabled PPSK groups, each one clickable through to a pre-filtered list, plus a short registry-growth chart. This page loads data once, on open - there's no live auto-refreshing counter anywhere in the panel, so anything here is only ever as fresh as your last page load or manual refresh (including the "connected now" count - it's a snapshot, not a live feed).
@@ -44,7 +46,14 @@ Asks for confirmation, then removes the group and its underlying RADIUS credenti
 
 ## 3. Sessions
 
-Shows who's actually connected right now, and who's connected recently - sourced from FreeRADIUS's own accounting records, not something Zonclave tracks itself.
+Shows who's actually connected right now, and who's connected recently - sourced from FreeRADIUS's own accounting records, not something Zonclave tracks itself. In the sidebar, this is four pages grouped under one **Sessions** heading:
+
+- **All Sessions** - everything, unfiltered.
+- **Active PPSK Users** - only sessions that are actively connected right now. Shows a live count badge in the sidebar.
+- **Stale Sessions** - sessions with no activity in the last 15 minutes and no recorded disconnect (see Status below). Also badged, since this is usually worth a look.
+- **Inactive PPSK Users** - only sessions with a clean recorded disconnect.
+
+All four show the same columns and are the same underlying data - just pre-filtered to save you from re-applying the same filter every time you want to check who's currently online versus who's dropped off.
 
 Each row: which PPSK, the RADIUS username, the VLAN, the device's MAC address, the IP it was assigned on that VLAN, a "known egress IP" (see Tunnel Egress IPs below), when it connected, when it disconnected (blank if still connected), **why it disconnected**, how long the session lasted, and how much data it used.
 
@@ -56,7 +65,7 @@ The disconnect reason is whatever the access point itself reported (e.g. `User-R
 - **Stale** - no recorded disconnect, but also no activity in the last 15 minutes. This usually means the device just walked away, lost power, or dropped out of range without a clean disconnect - it isn't a bug, it's a real gap in how RADIUS accounting works (a clean "goodbye" packet isn't guaranteed).
 - **Disconnected** - a clean disconnect was recorded.
 
-Filter by VLAN, or toggle "currently connected only" to hide everything except live sessions.
+On **All Sessions**, filter by VLAN, or toggle "currently connected only" to hide everything except live sessions (the other three pages skip that toggle, since they're already pre-filtered to one status). Every page also lets you hide columns you don't need - see "Manageable columns" at the end of this section.
 
 This page shows nothing until FreeRADIUS accounting is actually turned on for this deployment - if it's empty and you expect sessions, that's the first thing to check, not a panel bug.
 

@@ -6,6 +6,8 @@ Everything here lives behind `/admin` and requires logging in first - none of it
 
 **A cross-cutting feature worth knowing about up front:** every table in the panel has a column-visibility control (usually a small icon near the search box) - hide any column you don't need on a given screen. Your choice is remembered for that page, so it's a one-time setup per table, not something you redo every visit. One column per table is always shown regardless (its main identifying column, e.g. Label on PPSK Groups), so a row can never become unidentifiable.
 
+**Sidebar layout:** Dashboard and PPSK Groups sit at the top on their own. Below them, everything else is grouped under two collapsible headings - **Sessions** (Section 3) and **System** (VLANs, Tunnel Egress IPs, Backups, Admin Log, and About Developer, in that order) - so day-to-day PPSK work stays closest to the top and the more occasional configuration/reference screens are tucked under one heading.
+
 ## 1. Dashboard
 
 The home page after logging in. A Network Topology diagram shows every provisioned VLAN with its subnet and tunnel name, how many PPSKs are active/disabled on it, and how many devices are connected right now. Below that, stat cards for total, active, and disabled PPSK groups, each one clickable through to a pre-filtered list, plus a short registry-growth chart. This page loads data once, on open - there's no live auto-refreshing counter anywhere in the panel, so anything here is only ever as fresh as your last page load or manual refresh (including the "connected now" count - it's a snapshot, not a live feed).

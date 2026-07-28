@@ -1,7 +1,7 @@
 <x-filament-panels::page>
     <x-filament::section>
         <div class="zc-about-hero">
-            <div class="zc-about-avatar">ZA</div>
+            <img src="{{ asset('images/zilleali-avatar.jpg') }}" alt="ZILL E ALI" class="zc-about-avatar" width="80" height="80">
             <p class="zc-about-name">ZILL E ALI</p>
             <p class="zc-about-role">Developer &amp; Network Engineer</p>
             <p class="zc-about-tagline">Mikrotik Certified. Building Developer Zon products - from the network layer up.</p>

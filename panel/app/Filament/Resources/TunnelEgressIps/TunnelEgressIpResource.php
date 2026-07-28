@@ -13,6 +13,7 @@ use Filament\Resources\Resource;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use UnitEnum;
 
 // Manually-maintained per-VLAN residential egress IP reference (CLAUDE.md
 // Section 16.6). There is no OPNsense API integration yet (Section 19 is
@@ -36,6 +37,10 @@ class TunnelEgressIpResource extends Resource
     protected static ?string $pluralModelLabel = 'Tunnel Egress IPs';
 
     protected static ?string $recordTitleAttribute = 'vlan_id';
+
+    // Grouped under "System" (client request 2026-07-28) - see
+    // ProvisionedVlanResource's own comment for why.
+    protected static string|UnitEnum|null $navigationGroup = 'System';
 
     protected static ?int $navigationSort = 6;
 

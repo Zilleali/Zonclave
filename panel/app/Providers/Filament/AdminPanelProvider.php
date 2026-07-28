@@ -50,6 +50,14 @@ class AdminPanelProvider extends PanelProvider
             // Sessions sub-pages shipped - "Inactive PPSK Users" (the new
             // longest label) was truncating with an ellipsis at 15rem.
             ->sidebarWidth('16.5rem')
+            // Explicit order (client request 2026-07-28: Sessions right
+            // after PPSK Groups, About Developer at the very bottom).
+            // Filament always renders every ungrouped item (PPSK Groups,
+            // Dashboard) as one block before any named group, so this is
+            // what actually controls where "Sessions" and "System" land
+            // relative to each other - without it, both would tie and fall
+            // back to declaration order, which is fragile.
+            ->navigationGroups(['Sessions', 'System'])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([

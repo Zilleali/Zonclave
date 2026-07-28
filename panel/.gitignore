@@ -16,6 +16,10 @@
 /public/build
 /public/hot
 /public/storage
+# Full-resolution source photo (10.7MB) - only the optimized, correctly-
+# rotated public/images/zilleali-avatar.jpg (generated from it, committed)
+# is actually referenced anywhere. Kept locally, not in git history.
+/public/images/zilleali.jpg
 /storage/*.key
 /storage/pail
 /vendor

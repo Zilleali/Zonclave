@@ -661,13 +661,9 @@ img, svg {
     width: 6rem;
     height: 6rem;
     margin: 0 auto;
+    display: block;
     border-radius: 999px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: #020617;
+    object-fit: cover;
     background: linear-gradient(135deg, var(--accent) 0%, var(--secondary) 100%);
     box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.12), 0 20px 45px -12px rgba(56, 189, 248, 0.5);
 }

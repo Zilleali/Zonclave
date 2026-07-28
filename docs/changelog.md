@@ -4,6 +4,14 @@ What changed, and when. Newest first. The topmost entry is the current version -
 
 Version numbers are `0.x` on purpose: Phase 1 (CLAUDE.md's own definition of done) hasn't fully signed off yet - see the still-open items in CLAUDE.md Section 20 and the acceptance tests in Section 21.1. `1.0.0` is reserved for when that full pass is complete.
 
+## 0.6.7 - 2026-07-28
+
+- Both About pages (public and in-panel) now show an actual photo instead of the initials placeholder.
+
+## 0.6.6 - 2026-07-28
+
+- Reordered the admin panel sidebar: **Sessions** now sits right after **PPSK Groups**; VLANs, Tunnel Egress IPs, Backups, and Admin Log are now grouped under a new **System** heading, with **About Developer** moved to the very last position in the whole sidebar.
+
 ## 0.6.5 - 2026-07-28
 
 - Added an **About Developer** page inside the admin panel itself (bottom of the sidebar) - the same Developer & Network Engineer profile as the public `/about` page, without leaving the panel.

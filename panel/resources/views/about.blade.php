@@ -11,7 +11,7 @@
     <section class="section">
         <div class="container">
             <div class="about-hero">
-                <div class="about-avatar">ZA</div>
+                <img src="{{ asset('images/zilleali-avatar.jpg') }}" alt="ZILL E ALI" class="about-avatar" width="96" height="96">
                 <p class="name">ZILL E ALI</p>
                 <p class="role">Developer &amp; Network Engineer</p>
                 <p class="tagline">Mikrotik Certified. Building Developer Zon products - from the network layer up.</p>

@@ -11,6 +11,7 @@ use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 // Manages the provisioned VLAN registry (CLAUDE.md Section 16.5, pulled
 // into Phase 1 2026-07-28). Adding a VLAN here is what makes it selectable
@@ -28,6 +29,13 @@ class ProvisionedVlanResource extends Resource
     protected static ?string $pluralModelLabel = 'VLANs';
 
     protected static ?string $recordTitleAttribute = 'vlan_id';
+
+    // Grouped under "System" alongside Tunnel Egress IPs, Backups, and
+    // Admin Log (client request 2026-07-28) - so the "Sessions" group can
+    // sit between PPSK Groups and this one. Filament always renders all
+    // ungrouped items as a single block before any named group, so this
+    // block could not otherwise be reordered.
+    protected static string|UnitEnum|null $navigationGroup = 'System';
 
     protected static ?int $navigationSort = 4;
 

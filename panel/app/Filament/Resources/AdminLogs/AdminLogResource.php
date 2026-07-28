@@ -11,6 +11,7 @@ use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 // Read-only audit trail (CLAUDE.md Section 17). admin_log is append-only,
 // written only through AdminLogRepository (Section 23.1's logging
@@ -27,6 +28,10 @@ class AdminLogResource extends Resource
     protected static ?string $pluralModelLabel = 'Admin Log';
 
     protected static ?string $recordTitleAttribute = 'action';
+
+    // Grouped under "System" (client request 2026-07-28) - see
+    // ProvisionedVlanResource's own comment for why.
+    protected static string|UnitEnum|null $navigationGroup = 'System';
 
     protected static ?int $navigationSort = 10;
 

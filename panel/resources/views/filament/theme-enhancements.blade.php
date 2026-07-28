@@ -430,13 +430,9 @@
         width: 5rem;
         height: 5rem;
         margin: 0 auto;
+        display: block;
         border-radius: 999px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: white;
+        object-fit: cover;
         background: linear-gradient(135deg, var(--fi-color-primary-400, #38bdf8) 0%, #34d399 100%);
         box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.15), 0 20px 40px -12px rgba(56, 189, 248, 0.5);
     }

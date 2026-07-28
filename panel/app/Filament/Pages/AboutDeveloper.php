@@ -7,6 +7,7 @@ namespace App\Filament\Pages;
 use BackedEnum;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use UnitEnum;
 
 // An in-panel counterpart to the public /about page (resources/views/
 // about.blade.php) - same Developer & Network Engineer story and social
@@ -21,8 +22,13 @@ class AboutDeveloper extends Page
 
     protected static ?string $title = 'About the Developer';
 
-    // Sits after every functional resource/page, not grouped with them -
-    // this is attribution, not a workflow tool.
+    // Grouped under "System" (client request 2026-07-28) - Filament always
+    // renders ungrouped items as one block before any named group, so this
+    // page had to join a named group to render after "Sessions" too. The
+    // highest sort number in the group keeps it last within it - "bottom
+    // bottom" of the whole sidebar, not just last among ungrouped items.
+    protected static string|UnitEnum|null $navigationGroup = 'System';
+
     protected static ?int $navigationSort = 100;
 
     protected string $view = 'filament.pages.about-developer';

@@ -11,6 +11,7 @@ use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use UnitEnum;
 
 // Full-database backups (CLAUDE.md Section 16.8). Created only through
 // App\Services\BackupService - on demand (this resource's "Backup now"
@@ -28,6 +29,10 @@ class BackupResource extends Resource
     protected static ?string $pluralModelLabel = 'Backups';
 
     protected static ?string $recordTitleAttribute = 'filename';
+
+    // Grouped under "System" (client request 2026-07-28) - see
+    // ProvisionedVlanResource's own comment for why.
+    protected static string|UnitEnum|null $navigationGroup = 'System';
 
     protected static ?int $navigationSort = 7;
 

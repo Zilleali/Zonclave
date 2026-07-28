@@ -25,7 +25,13 @@
                                     <span class="zc-topo-badge zc-topo-badge--disabled">{{ $node['disabled'] }} disabled</span>
                                 @endif
                                 @if ($node['active'] === 0 && $node['disabled'] === 0)
-                                    <span class="zc-topo-badge zc-topo-badge--empty">unprovisioned</span>
+                                    {{-- Not "unprovisioned" - that word now
+                                         collides with the VLANs page's own
+                                         provisioned/deprovisioned language
+                                         (Section 16.5/16.7). This VLAN exists
+                                         in the registry; it just has no
+                                         PPSKs assigned to it yet. --}}
+                                    <span class="zc-topo-badge zc-topo-badge--empty">No PPSKs</span>
                                 @endif
                             </span>
                         </a>

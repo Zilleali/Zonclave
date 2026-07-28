@@ -29,7 +29,7 @@ class NetworkTopologyWidgetTest extends TestCase
         Livewire::test(NetworkTopologyWidget::class)
             ->assertSee('VLAN 300')
             ->assertSee('VLAN 304')
-            ->assertSee('unprovisioned');
+            ->assertSee('No PPSKs');
     }
 
     public function test_reflects_active_and_disabled_counts_per_vlan(): void

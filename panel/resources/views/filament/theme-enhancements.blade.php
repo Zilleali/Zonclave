@@ -278,6 +278,15 @@
         border-radius: 999px;
     }
 
+    /* Live session count (Section 16.6/16's Network Topology enhancement,
+       2026-07-28) - distinct sky accent so it reads as "happening right
+       now" rather than the green/gray/muted registry-state badges below,
+       which only ever reflect what's stored, not what's connected. */
+    .zc-topo-badge--live {
+        background-color: rgba(56, 189, 248, 0.15);
+        color: #38bdf8;
+    }
+
     .zc-topo-badge--active {
         background-color: rgba(34, 197, 94, 0.15);
         color: #4ade80;

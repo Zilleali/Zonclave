@@ -18,6 +18,9 @@
                             <span class="zc-topo-vlan-detail">{{ $node['subnet'] }}</span>
                             <span class="zc-topo-vlan-detail">{{ $node['wireguard_interface'] }}</span>
                             <span class="zc-topo-vlan-counts">
+                                @if ($node['connected'] > 0)
+                                    <span class="zc-topo-badge zc-topo-badge--live">{{ $node['connected'] }} connected now</span>
+                                @endif
                                 @if ($node['active'] > 0)
                                     <span class="zc-topo-badge zc-topo-badge--active">{{ $node['active'] }} active</span>
                                 @endif

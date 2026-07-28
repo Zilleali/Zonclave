@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Filament\Widgets\NetworkTopologyWidget;
 use App\Models\PpskGroup;
+use App\Models\RadiusAccounting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -49,5 +50,38 @@ class NetworkTopologyWidgetTest extends TestCase
 
         $this->assertStringContainsString('vlan_id', (string) $vlan300['url']);
         $this->assertStringContainsString('300', (string) $vlan300['url']);
+    }
+
+    // radacct has no vlan_id of its own (Section 16.6) - the live count is
+    // derived through the joined ppsk_groups row, same as the Sessions
+    // page's own VLAN filter/column.
+    public function test_shows_a_live_connected_count_per_vlan(): void
+    {
+        PpskGroup::factory()->create(['radius_username' => 'ppsk_group001', 'vlan_id' => 300]);
+        RadiusAccounting::query()->create([
+            'acctsessionid' => 'sess-1',
+            'acctuniqueid' => 'uniq-1',
+            'username' => 'ppsk_group001',
+            'acctstarttime' => now()->subMinutes(5),
+            'acctupdatetime' => now(),
+        ]);
+
+        Livewire::test(NetworkTopologyWidget::class)
+            ->assertSee('1 connected now');
+    }
+
+    public function test_does_not_show_a_connected_badge_for_closed_sessions(): void
+    {
+        PpskGroup::factory()->create(['radius_username' => 'ppsk_group001', 'vlan_id' => 300]);
+        RadiusAccounting::query()->create([
+            'acctsessionid' => 'sess-1',
+            'acctuniqueid' => 'uniq-1',
+            'username' => 'ppsk_group001',
+            'acctstarttime' => now()->subHour(),
+            'acctstoptime' => now(),
+        ]);
+
+        Livewire::test(NetworkTopologyWidget::class)
+            ->assertDontSee('connected now');
     }
 }

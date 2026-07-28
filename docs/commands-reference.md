@@ -109,6 +109,28 @@ nginx -t                          # test nginx config without reloading
 sudo -u postgres psql -d ppsk     # ppsk is the default DB_NAME
 ```
 
+### Database backup and restore
+
+```sh
+# Manual backup right now (same thing the panel's "Backup now" button and
+# the daily 03:00 schedule both call)
+cd /opt/zonclave && sudo -u www-data php artisan zonclave:backup
+
+# Inspect a backup file without restoring it
+pg_restore -l /opt/zonclave/storage/app/private/backups/<filename>.dump
+
+# Convert a backup to plain, readable SQL (does not restore anything)
+pg_restore -f readable.sql /opt/zonclave/storage/app/private/backups/<filename>.dump
+
+# Restore - replaces the ENTIRE live database. No panel button for this on
+# purpose (CLAUDE.md Section 16.8). Always take a fresh safety backup
+# first (step 1 below).
+cd /opt/zonclave && sudo -u www-data php artisan zonclave:backup
+sudo systemctl stop php8.3-fpm
+sudo -u postgres pg_restore --clean --if-exists --no-owner --no-acl -d ppsk /opt/zonclave/storage/app/private/backups/<filename>.dump
+sudo systemctl start php8.3-fpm
+```
+
 ### FreeRADIUS auth smoke test
 
 ```sh

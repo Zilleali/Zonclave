@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Enums\AdminLogAction;
 use App\Models\Backup;
 use App\Repositories\AdminLogRepository;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
@@ -78,6 +79,30 @@ class BackupService
         $this->pruneOldBackups();
 
         return $backup;
+    }
+
+    // Called after a significant registry change (a PPSK or VLAN created or
+    // deleted - CLAUDE.md Section 16.8, client request) so the daily
+    // schedule isn't the only safety net for a meaningful change. Skips
+    // outright if any backup - scheduled, on-demand, or a previous
+    // auto-trigger - already happened within the cooldown window, so a
+    // burst of admin changes can't spam full pg_dump runs back to back.
+    // Never lets a backup failure propagate into the caller - creating or
+    // deleting a PPSK/VLAN must still succeed even if this incidental
+    // backup attempt fails (e.g. a non-Postgres environment).
+    public function maybeAutoBackup(?string $adminUser): void
+    {
+        $cooldown = (int) config('zonclave.backup_auto_cooldown_minutes');
+
+        if (Backup::query()->where('created_at', '>=', now()->subMinutes($cooldown))->exists()) {
+            return;
+        }
+
+        try {
+            $this->create($adminUser);
+        } catch (RuntimeException $e) {
+            Log::warning('Auto-backup after a registry change failed: '.$e->getMessage());
+        }
     }
 
     public function delete(Backup $backup, ?string $adminUser): void

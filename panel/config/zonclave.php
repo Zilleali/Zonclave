@@ -28,4 +28,11 @@ return [
     // (Section 16.8) before pruning the oldest - roughly two weeks at the
     // default daily schedule.
     'backup_retention' => (int) env('ZONCLAVE_BACKUP_RETENTION', 14),
+
+    // Minimum gap BackupService::maybeAutoBackup() leaves between backups
+    // triggered by a significant registry change (a PPSK or VLAN created
+    // or deleted) - satisfied by ANY recent backup, not just auto-triggered
+    // ones, so a burst of admin changes right after the daily 03:00 backup
+    // doesn't immediately trigger another.
+    'backup_auto_cooldown_minutes' => (int) env('ZONCLAVE_BACKUP_AUTO_COOLDOWN_MINUTES', 30),
 ];

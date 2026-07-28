@@ -9,7 +9,9 @@ use App\Models\AdminLog;
 use App\Models\Backup;
 use App\Services\BackupService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -94,5 +96,46 @@ class BackupServiceTest extends TestCase
         $this->service()->pruneOldBackups();
 
         $this->assertSame(0, AdminLog::query()->where('action', AdminLogAction::BackupDeleted->value)->count());
+    }
+
+    // maybeAutoBackup() (Section 16.8, client request: back up after a
+    // significant registry change, not just on the daily schedule).
+    public function test_maybe_auto_backup_skips_when_a_recent_backup_already_exists(): void
+    {
+        Storage::fake('local');
+        config(['zonclave.backup_auto_cooldown_minutes' => 30]);
+        $this->seedBackup(now()->subMinutes(5)->toDateTimeString());
+
+        Log::shouldReceive('warning')->never();
+
+        $this->service()->maybeAutoBackup('admin@test');
+
+        // Still just the one seeded row - nothing new attempted.
+        $this->assertSame(1, Backup::query()->count());
+    }
+
+    public function test_maybe_auto_backup_attempts_a_backup_and_swallows_failure_when_none_recent(): void
+    {
+        config(['zonclave.backup_auto_cooldown_minutes' => 30]);
+
+        Log::shouldReceive('warning')->once()->with(Mockery::pattern('/Auto-backup after a registry change failed/'));
+
+        // Does not throw, even though create() fails internally (sqlite,
+        // not Postgres) - a PPSK/VLAN create or delete must still succeed
+        // regardless of whether the incidental backup attempt works.
+        $this->service()->maybeAutoBackup('admin@test');
+
+        $this->assertSame(0, Backup::query()->count());
+    }
+
+    public function test_maybe_auto_backup_runs_again_once_the_cooldown_has_passed(): void
+    {
+        Storage::fake('local');
+        config(['zonclave.backup_auto_cooldown_minutes' => 30]);
+        $this->seedBackup(now()->subMinutes(45)->toDateTimeString());
+
+        Log::shouldReceive('warning')->once();
+
+        $this->service()->maybeAutoBackup('admin@test');
     }
 }

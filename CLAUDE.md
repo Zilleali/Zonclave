@@ -494,6 +494,24 @@ No backup existed before this - if the server were lost, the entire PPSK registr
 - **Storage:** `storage/app/private/backups/` - the `local` disk's private root, confirmed not web-accessible (unlike `storage/app/public`). A lightweight `backups` table (filename, disk path, size) is the only thing the panel queries to list/download/prune - the dump content itself is never read back into the app.
 - **Download** goes through a real route (`GET /admin/backups/{backup}/download`, `panel/routes/web.php`), not a Livewire action - a browser file download can't be triggered from an AJAX-driven Filament action. Gated by Filament's own `Authenticate` middleware, the same guard the rest of the panel uses.
 - **Security note:** a full dump includes `ppsk_groups.password_hash`, but that value is `Crypt::encryptString()`-encrypted with `APP_KEY`, which lives only in `.env`, never in the database (Section 14) - so a leaked backup file alone cannot decrypt any PSK. No RADIUS shared secret is ever in the database (Section 15's existing boundary).
+- **Auto-backup after a significant registry change** (added 2026-07-28, client request): `App\Services\BackupService::maybeAutoBackup()` runs after `PpskService::create()`/`delete()` and `ProvisionedVlanService::provision()`/`deprovision()` - a PPSK or VLAN created or deleted, not every minor edit, and not RADIUS session traffic (which would fire constantly and defeat the point). Rate-limited by `config('zonclave.backup_auto_cooldown_minutes')` (default 30) - satisfied by *any* recent backup (scheduled, on-demand, or a previous auto-trigger), so a burst of admin changes can't spam full `pg_dump` runs back to back. Runs synchronously, outside the triggering write's own transaction; a failed auto-backup attempt (e.g. logs a warning) never blocks or fails the PPSK/VLAN operation that triggered it.
+- **Restore is deliberately CLI-only, not a panel feature** (client explicitly agreed to this scoping, 2026-07-28): a restore replaces the *entire* live database, which is too high-blast-radius for a self-service web button in Phase 1. To restore:
+
+  ```sh
+  # 1. Take a fresh safety backup of the CURRENT state before overwriting it
+  cd /opt/zonclave && sudo -u www-data php artisan zonclave:backup
+
+  # 2. Stop the panel so nothing writes mid-restore
+  sudo systemctl stop php8.3-fpm
+
+  # 3. Restore from the chosen backup (path from the Backups page, or /opt/zonclave/storage/app/private/backups/)
+  sudo -u postgres pg_restore --clean --if-exists --no-owner --no-acl -d ppsk /opt/zonclave/storage/app/private/backups/<filename>.dump
+
+  # 4. Bring the panel back up
+  sudo systemctl start php8.3-fpm
+  ```
+
+  `--clean --if-exists` drops existing objects before recreating them (matching the dump's own `--no-owner --no-acl`), so this genuinely replaces the database rather than merging into it. See `docs/commands-reference.md` for the same sequence with no explanation.
 - **Still open, one-time manual step:** this is the first Laravel-scheduled task in this app, so it needs the one-time scheduler crontab entry. New installs get it automatically (`installer/install-ubuntu22.04.sh`'s `configure_services()` stage); the already-live Kelder node needs it added once by hand - see Section 20.
 
 **Network Topology enhancement (same date):** the Dashboard's topology diagram (`App\Filament\Widgets\NetworkTopologyWidget`) now also shows a "connected now" count per VLAN, using the same "open session" definition (`whereNull('acctstoptime')`) the Sessions page's own filter already uses - one more snapshot-at-page-load data point, not a new polling surface (Section 23.3 is unaffected).

@@ -80,11 +80,12 @@ This only manages which VLANs the *panel* knows about. It does not create, modif
 
 ## 6. Backups
 
-A full backup of the database - the entire PPSK registry, VLAN list, admin log, and session history. One is taken automatically every day; the newest 14 are kept, older ones are removed automatically.
+A full backup of the database - the entire PPSK registry, VLAN list, admin log, and session history. Backups happen three ways: automatically every day, automatically right after a PPSK or VLAN is created or deleted (at most one extra backup every 30 minutes, so a flurry of changes doesn't pile up backups), or on demand. The newest 14 are kept; older ones are removed automatically regardless of which of the three created them.
 
-- **Backup now** creates one immediately, in addition to the daily automatic one - useful right before a risky change.
-- **Download** saves the backup file to your computer. It's a `pg_dump` archive (`.dump`), restorable with `pg_restore` - not something you open directly.
+- **Backup now** creates one immediately - useful right before a risky change.
+- **Download** saves the backup file to your computer. It's a `pg_dump` archive (`.dump`) - not something you open directly. To actually look inside one, `pg_restore -l <file>` lists its contents, and `pg_restore -f readable.sql <file>` converts the whole thing to plain SQL text.
 - **Delete** removes a backup you don't need to keep. This only affects the backup file itself, never the live data.
+- **There is no "restore" button.** Restoring replaces the entire live database, which is too destructive an action to be one click away in a web panel - it's a deliberate command-line process instead. See `docs/commands-reference.md` for the exact steps, or ask whoever manages the server.
 
 A backup file is only ever readable by whoever can already reach this page - and even if one leaked, the stored Wi-Fi passwords inside it are encrypted with a key that isn't in the database, so it can't be decrypted from the backup alone.
 

@@ -20,17 +20,25 @@ class ProvisionedVlanService
 {
     public function __construct(
         private readonly AdminLogRepository $auditLog,
+        private readonly BackupService $backups,
     ) {}
 
     public function provision(int $vlanId, ?string $adminUser): ProvisionedVlan
     {
-        return DB::transaction(function () use ($vlanId, $adminUser): ProvisionedVlan {
+        $vlan = DB::transaction(function () use ($vlanId, $adminUser): ProvisionedVlan {
             $vlan = ProvisionedVlan::query()->create(['vlan_id' => $vlanId]);
 
             $this->auditLog->log(AdminLogAction::VlanProvisioned, $adminUser, null, sprintf('VLAN %d', $vlanId));
 
             return $vlan;
         });
+
+        // Outside the transaction, same reasoning as PpskService::create()
+        // (Section 16.8, client request: back up after a significant
+        // registry change, not just on the daily schedule).
+        $this->backups->maybeAutoBackup($adminUser);
+
+        return $vlan;
     }
 
     /**
@@ -52,5 +60,7 @@ class ProvisionedVlanService
 
             $this->auditLog->log(AdminLogAction::VlanDeprovisioned, $adminUser, null, sprintf('VLAN %d', $vlanId));
         });
+
+        $this->backups->maybeAutoBackup($adminUser);
     }
 }

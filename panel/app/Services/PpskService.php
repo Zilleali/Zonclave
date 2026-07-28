@@ -29,6 +29,7 @@ class PpskService
         private readonly RadiusRepository $radius,
         private readonly AdminLogRepository $auditLog,
         private readonly PskGenerator $generator,
+        private readonly BackupService $backups,
     ) {}
 
     /**
@@ -77,6 +78,13 @@ class PpskService
 
             return $group;
         });
+
+        // Outside the transaction - a backup isn't part of what needs to be
+        // atomic with the PPSK write, and pg_dump is slow enough that
+        // holding a DB transaction open for it would be its own problem
+        // (Section 16.8, client request: back up after a significant
+        // registry change, not just on the daily schedule).
+        $this->backups->maybeAutoBackup($adminUser);
 
         return ['group' => $group, 'psk' => $psk->value];
     }
@@ -139,6 +147,8 @@ class PpskService
             $this->auditLog->log(AdminLogAction::PpskDeleted, $adminUser, $group->id, $group->label);
             $this->groups->delete($group);
         });
+
+        $this->backups->maybeAutoBackup($adminUser);
     }
 
     /**

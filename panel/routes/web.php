@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
 Route::get('/', fn () => view('landing'));
+Route::get('/about', fn () => view('about'));
 Route::get('/docs', fn () => view('docs.index'));
 
 // These three render docs/*.md live (App\Support\DocsMarkdownRenderer) -

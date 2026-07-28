@@ -28,19 +28,27 @@
             <h2 class="section-title">How it works</h2>
             <p class="section-subtitle">Four steps, entirely automatic once a credential is provisioned - no manual routing per device.</p>
 
-            <div class="step-grid">
-                @foreach ([
-                    ['n' => '1', 'title' => 'Unique password', 'body' => 'A device joins the SSID using a credential generated just for its group - never shared, never reused.'],
-                    ['n' => '2', 'title' => 'RADIUS assigns a VLAN', 'body' => 'FreeRADIUS authenticates the credential and hands back that group’s dedicated VLAN. Nothing else.'],
-                    ['n' => '3', 'title' => 'A private tunnel', 'body' => 'The VLAN is policy-routed through its own WireGuard tunnel - explicitly pinned, never a shared default route.'],
-                    ['n' => '4', 'title' => 'Its own residential IP', 'body' => 'Traffic egresses through that tunnel’s residential exit - distinct from every other group on the network.'],
-                ] as $step)
-                    <div class="step-card">
-                        <span class="step-number{{ $step['n'] === '4' ? ' secondary' : '' }}">{{ $step['n'] }}</span>
-                        <h3>{{ $step['title'] }}</h3>
-                        <p>{{ $step['body'] }}</p>
-                    </div>
-                @endforeach
+            {{-- Animated, auto-looping "flow" through the 4 steps (client
+                 request 2026-07-28: "GIF style ... easy to understand") -
+                 pure CSS, plays continuously with no interaction needed,
+                 same effect as a looping GIF without an actual image file.
+                 Respects prefers-reduced-motion (see public.css). --}}
+            <div class="step-grid-wrap">
+                <div class="step-flow-line" aria-hidden="true"></div>
+                <div class="step-grid">
+                    @foreach ([
+                        ['n' => '1', 'title' => 'Unique password', 'body' => 'A device joins the SSID using a credential generated just for its group - never shared, never reused.'],
+                        ['n' => '2', 'title' => 'RADIUS assigns a VLAN', 'body' => 'FreeRADIUS authenticates the credential and hands back that group’s dedicated VLAN. Nothing else.'],
+                        ['n' => '3', 'title' => 'A private tunnel', 'body' => 'The VLAN is policy-routed through its own WireGuard tunnel - explicitly pinned, never a shared default route.'],
+                        ['n' => '4', 'title' => 'Its own residential IP', 'body' => 'Traffic egresses through that tunnel’s residential exit - distinct from every other group on the network.'],
+                    ] as $step)
+                        <div class="step-card">
+                            <span class="step-number{{ $step['n'] === '4' ? ' secondary' : '' }}">{{ $step['n'] }}</span>
+                            <h3>{{ $step['title'] }}</h3>
+                            <p>{{ $step['body'] }}</p>
+                        </div>
+                    @endforeach
+                </div>
             </div>
 
             <p class="note">If a tunnel ever drops, that group's traffic is dropped, too - never silently rerouted onto the plain internet connection.</p>
@@ -149,6 +157,7 @@
                 Zonclave is built and maintained end to end - from the network architecture (VLANs, WireGuard, firewall policy)
                 to the software that manages it (the admin panel, the registry, the installer).
             </p>
+            <p style="margin-top: 1.5rem;"><a href="{{ url('/about') }}" class="doc-back">Read the full story &rarr;</a></p>
         </div>
     </section>
 

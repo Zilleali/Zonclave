@@ -16,6 +16,11 @@ class PublicPagesTest extends TestCase
         $this->get('/')->assertOk()->assertSee('Zonclave');
     }
 
+    public function test_about_page_is_reachable(): void
+    {
+        $this->get('/about')->assertOk()->assertSee('ZILL E ALI');
+    }
+
     public function test_docs_index_is_reachable(): void
     {
         $this->get('/docs')->assertOk()->assertSee('Documentation');
@@ -74,7 +79,7 @@ class PublicPagesTest extends TestCase
         // is fine - App\Support\DocsMarkdownRenderer strips the href but
         // intentionally leaves the surrounding sentence readable.
         foreach ([
-            '/', '/docs', '/docs/installation-guide', '/docs/commands-reference',
+            '/', '/about', '/docs', '/docs/installation-guide', '/docs/commands-reference',
             '/docs/opnsense-configuration', '/docs/site-configuration', '/docs/troubleshooting',
             '/docs/user-guide', '/docs/developer-guide', '/docs/changelog',
         ] as $url) {

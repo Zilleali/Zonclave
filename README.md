@@ -8,12 +8,14 @@ PPSK / VLAN / WireGuard multi-tunnel system. A single Wi-Fi SSID accepts many un
 
 ## How it works
 
-```text
-Device --> SSID + unique PPSK --> UniFi AP --> FreeRADIUS (auth + VLAN assignment)
-                                                 |
-                                    Access-Accept + Tunnel-Private-Group-Id
-                                                 v
-UniFi switch (tags VLAN) --> OPNsense --> WG_VLAN<id> tunnel --> residential public IP
+```mermaid
+flowchart TD
+    A["Device joins SSID<br/>with a unique PPSK"] --> B["UniFi AP"]
+    B --> C["FreeRADIUS<br/>(auth + VLAN assignment only)"]
+    C -->|"Access-Accept +<br/>Tunnel-Private-Group-Id"| D["UniFi switch<br/>tags the VLAN"]
+    D --> E["OPNsense<br/>(routing + firewall + VPN policy only)"]
+    E --> F["WG_VLAN&lt;id&gt; tunnel"]
+    F --> G["Residential public IP"]
 ```
 
 FreeRADIUS handles authentication and VLAN assignment only. OPNsense handles routing, firewalling, and VPN policy only. That boundary is never blurred (CLAUDE.md Section 1).
@@ -26,6 +28,7 @@ Each VLAN is fail-closed: if its WireGuard tunnel drops, traffic is dropped, nev
 | --- | --- |
 | `CLAUDE.md` | Project reference and specification. Source of truth |
 | `panel/` | Zonclave web panel: Laravel 12 + Filament 5, PostgreSQL |
+| `panel/resources/views/{landing,about,docs}.blade.php` | Public marketing site - landing page, About (developer bio), and the live-rendered docs pages - all outside `/admin`, no auth required |
 | `installer/install-ubuntu22.04.sh` | One-command installer for the auth + panel node (Ubuntu Server 22.04 LTS, the officially supported target) |
 | `db/` | Reference SQL schema and seed scripts for dev/test databases |
 | `docs/adr/` | Architecture decision records |

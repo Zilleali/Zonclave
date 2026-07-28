@@ -4,6 +4,19 @@ What changed, and when. Newest first. The topmost entry is the current version -
 
 Version numbers are `0.x` on purpose: Phase 1 (CLAUDE.md's own definition of done) hasn't fully signed off yet - see the still-open items in CLAUDE.md Section 20 and the acceptance tests in Section 21.1. `1.0.0` is reserved for when that full pass is complete.
 
+## 0.6.4 - 2026-07-28
+
+- The light theme's shadow is now noticeably darker and stronger - the first pass read as too faint to look properly "elevated."
+- Added a dedicated **About** page (`/about`) with the full Developer & Network Engineer story, replacing the old short teaser as the main "About" link.
+- The public landing page's "How it works" section now animates continuously (a traveling glow through the 4 steps) instead of sitting static.
+- README's "How it works" diagram is now a rendered flowchart (Mermaid) instead of a plain-text diagram.
+
+## 0.6.3 - 2026-07-28
+
+- **Light theme is now available** - dark mode was previously forced with no way to switch; a light/dark/system toggle now appears in the user menu (top right).
+- Dashboard widgets (Network Topology, the PPSK stat cards, the welcome card) now use a **frosted-glass style** - a translucent panel, a visible colored border, and a stronger shadow than the rest of the panel - in both themes. Other pages (tables, forms) keep their existing solid-card look.
+- Fixed the panel's attribution footer, which was invisible in light theme (hardcoded white text left over from when dark mode was always on).
+
 ## 0.6.2 - 2026-07-28
 
 - The Sessions area is now split into four pages under one "Sessions" group: **All Sessions**, **Active PPSK Users** (connected right now), **Stale Sessions** (no clean disconnect, but gone quiet for 15+ minutes), and **Inactive PPSK Users** (cleanly disconnected). Active and Stale show a live count badge in the sidebar.

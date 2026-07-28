@@ -36,7 +36,13 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Sky,
             ])
-            ->darkMode(true, isForced: true)
+            // Dark mode stays the default (client's original preference,
+            // 2026-07-18), but is no longer forced (client request
+            // 2026-07-28) - a light theme is now reachable via Filament's
+            // own built-in toggle, so it needed real styling instead of
+            // just inheriting whatever was left over from the dark-only
+            // design.
+            ->darkMode()
             ->sidebarCollapsibleOnDesktop()
             // Filament's own default (20rem) - client feedback 2026-07-28,
             // sidebar was taking up too much of the screen. Trimmed to

@@ -4,60 +4,159 @@
      option here. Plain CSS overrides on Filament's existing fi- classes,
      same delivery mechanism as clipboard-script.blade.php.
 
-     MUI-dark-inspired restyle (client request 2026-07-18): dark mode is
-     forced panel-wide (AdminPanelProvider ->darkMode(true, isForced: true)),
-     restyled here to approximate a Material-UI dark dashboard look -
+     MUI-dark-inspired restyle (client request 2026-07-18): originally
+     built dark-only, since dark mode was forced panel-wide at the time -
      elevated card fills, pill-style active nav item, rounded corners,
      generous spacing - on top of Filament's own components. This is a
      CSS-only restyle, not a framework migration: Filament + Livewire stays
      the actual implementation (CLAUDE.md Section 16 tech-stack decision
      unchanged), so it won't be pixel-identical to a real MUI app, but gets
-     visually close without new dependencies or a build step. --}}
+     visually close without new dependencies or a build step.
+
+     Light theme + widget glass style (client request 2026-07-28): dark
+     mode is no longer forced (AdminPanelProvider), so every color below is
+     now a CSS variable defined twice - light values on :root (the default,
+     no .dark class present), dark values re-declared under .dark (the
+     class Filament's own theme switcher adds to <html>). Equal selector
+     specificity, so source order is what makes .dark win when present -
+     :root must stay declared first. Dashboard widgets (Network Topology,
+     the PPSK stat cards) get a distinct frosted-glass treatment; every
+     other card/section keeps the plain solid-surface look from the
+     original restyle - a deliberate scope choice, not an oversight. --}}
 <style>
     :root {
+        --zc-radius-lg: 1rem;
+        --zc-radius-md: 0.75rem;
+
+        /* Light theme (default - no .dark class present) */
+        --zc-bg: oklch(0.98 0.006 250);
+        --zc-surface: oklch(1 0 0);
+        --zc-surface-hover: oklch(0.965 0.014 240);
+        --zc-border: oklch(0.685 0.169 237.323 / 22%);
+        --zc-text-strong: oklch(0.24 0.03 260);
+        --zc-text-muted: oklch(0.45 0.02 260);
+        /* Deliberately dark, not a light/soft shadow (client feedback
+           2026-07-28: light theme's shadow read as too faint to actually
+           look "elevated") - a light-colored shadow on a light surface
+           barely registers, so this stays a strong, dark-tinted shadow
+           the same way the dark theme's own shadow always has been. */
+        --zc-shadow-ambient: rgba(15, 23, 42, 0.35);
+        --zc-scrollbar-thumb: oklch(0.4 0.05 260 / 25%);
+        --zc-scrollbar-thumb-hover: oklch(0.4 0.05 260 / 40%);
+
+        /* Ambient background wash behind the whole app - gives the widget
+           glass effect something colorful to show through, and keeps the
+           light theme from reading as flat white (client feedback
+           2026-07-28: "light theme also need prominent colors"). */
+        --zc-wash-a: oklch(0.75 0.12 237 / 30%);
+        --zc-wash-b: oklch(0.78 0.11 300 / 20%);
+
+        /* Widget glass - light */
+        --zc-glass-bg: linear-gradient(155deg, oklch(1 0 0 / 78%), oklch(1 0 0 / 55%));
+        --zc-glass-border: oklch(0.685 0.169 237.323 / 40%);
+        --zc-glass-shadow:
+            0 24px 48px -12px rgba(15, 23, 42, 0.38),
+            0 2px 8px rgba(56, 189, 248, 0.18),
+            inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+
+    .dark {
         --zc-bg: oklch(0.141 0.005 285.823);
         --zc-surface: oklch(0.19 0.007 285.823);
         --zc-surface-hover: oklch(0.225 0.008 285.823);
         --zc-border: oklch(1 0 0 / 8%);
-        --zc-radius-lg: 1rem;
-        --zc-radius-md: 0.75rem;
+        --zc-text-strong: white;
+        --zc-text-muted: rgba(255, 255, 255, 0.6);
+        --zc-shadow-ambient: rgba(0, 0, 0, 0.3);
+        --zc-scrollbar-thumb: oklch(1 0 0 / 18%);
+        --zc-scrollbar-thumb-hover: oklch(1 0 0 / 32%);
+
+        --zc-wash-a: oklch(0.5 0.15 237 / 14%);
+        --zc-wash-b: oklch(0.5 0.16 300 / 10%);
+
+        /* Widget glass - dark */
+        --zc-glass-bg: linear-gradient(155deg, oklch(1 0 0 / 9%), oklch(1 0 0 / 3%));
+        --zc-glass-border: oklch(1 0 0 / 16%);
+        --zc-glass-shadow:
+            0 24px 48px -12px rgba(0, 0, 0, 0.55),
+            0 2px 10px rgba(56, 189, 248, 0.12),
+            inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    /* Ambient wash: fixed, behind everything, purely decorative - this is
+       what makes the widgets' transparency actually read as "glass"
+       instead of just a plain tinted box. */
+    body {
+        position: relative;
+    }
+
+    body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background:
+            radial-gradient(640px circle at 12% 8%, var(--zc-wash-a), transparent 60%),
+            radial-gradient(560px circle at 88% 28%, var(--zc-wash-b), transparent 60%);
     }
 
     /* Elevation via a lighter fill plus a deliberately deep drop shadow -
-       plain 1px shadows barely read on a near-black background, so this
-       goes with MUI's own "elevation 24" style shadow instead (client
+       plain 1px shadows barely read against either theme's background, so
+       this goes with MUI's own "elevation 24" style shadow instead (client
        request 2026-07-18: the original subtle shadow wasn't visible
-       enough). */
+       enough). Everyday cards/tables/menus - NOT dashboard widgets, which
+       get their own glass treatment below. */
     .fi-section,
-    .fi-wi-widget,
     .fi-topbar-ctn,
     .fi-dropdown-panel {
         background-color: var(--zc-surface) !important;
         border-color: var(--zc-border) !important;
         border-radius: var(--zc-radius-lg) !important;
         transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-        box-shadow: rgba(0, 0, 0, 0.3) 0px 19px 38px, rgba(0, 0, 0, 0.22) 0px 15px 12px;
+        box-shadow: var(--zc-shadow-ambient) 0px 19px 38px, rgba(0, 0, 0, 0.15) 0px 15px 12px;
     }
 
-    .fi-section:hover {
+    .fi-section:not(.fi-wi-widget .fi-section):hover {
         background-color: var(--zc-surface-hover) !important;
         transform: translateY(-2px);
     }
 
-    .fi-section-content,
-    .fi-wi-widget {
+    .fi-section-content {
         border-radius: var(--zc-radius-lg) !important;
     }
 
+    /* Dashboard widgets: transparent glass style, strong border/shadow
+       (client request 2026-07-28) - scoped deliberately to just the
+       widgets (Network Topology, the PPSK stat cards), not every card in
+       the panel. */
+    .fi-wi-widget,
+    .fi-wi-widget .fi-section,
+    .fi-wi-stats-overview-stat {
+        background: var(--zc-glass-bg) !important;
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border: 1px solid var(--zc-glass-border) !important;
+        border-radius: var(--zc-radius-lg) !important;
+        box-shadow: var(--zc-glass-shadow) !important;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .fi-wi-widget .fi-section:hover,
+    .fi-wi-stats-overview-stat:hover {
+        transform: translateY(-3px);
+        border-color: var(--fi-color-primary-400, #38bdf8) !important;
+    }
+
     /* Scrollbars: the default OS/browser scrollbar (light gray on Windows
-       Chromium) reads as a jarring, generic strip against this near-black
-       theme (client feedback 2026-07-28) - a slim, translucent, dark-aware
-       bar instead. Firefox via scrollbar-width/-color, everything else via
-       the ::-webkit-scrollbar family; both are needed since neither covers
-       every engine. */
+       Chromium) reads as a jarring, generic strip against either theme's
+       background (client feedback 2026-07-28) - a slim, translucent,
+       theme-aware bar instead. Firefox via scrollbar-width/-color,
+       everything else via the ::-webkit-scrollbar family; both are needed
+       since neither covers every engine. */
     * {
         scrollbar-width: thin;
-        scrollbar-color: oklch(1 0 0 / 18%) transparent;
+        scrollbar-color: var(--zc-scrollbar-thumb) transparent;
     }
 
     ::-webkit-scrollbar {
@@ -70,14 +169,14 @@
     }
 
     ::-webkit-scrollbar-thumb {
-        background-color: oklch(1 0 0 / 18%);
+        background-color: var(--zc-scrollbar-thumb);
         border-radius: 999px;
         border: 2px solid transparent;
         background-clip: content-box;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-        background-color: oklch(1 0 0 / 32%);
+        background-color: var(--zc-scrollbar-thumb-hover);
     }
 
     ::-webkit-scrollbar-corner {
@@ -183,7 +282,9 @@
 
     /* Network topology widget: a static org-chart-style diagram, not a
        live device map (Section 13 - real tunnel/device health stays a
-       Phase 2 OPNsense/UniFi API integration). */
+       Phase 2 OPNsense/UniFi API integration). Sits inside the glass
+       .fi-wi-widget .fi-section above, so its own node colors are plain
+       (not glass) - only text colors here need to stay theme-aware. */
     .zc-topology {
         display: flex;
         flex-direction: column;
@@ -197,7 +298,7 @@
         border-radius: var(--zc-radius-md);
         padding: 0.75rem 1.5rem;
         font-weight: 600;
-        color: white;
+        color: var(--zc-text-strong);
         text-align: center;
     }
 
@@ -259,7 +360,7 @@
 
     .zc-topo-vlan-detail {
         font-size: 0.75rem;
-        color: rgba(255, 255, 255, 0.6);
+        color: var(--zc-text-muted);
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
 
@@ -284,28 +385,41 @@
        which only ever reflect what's stored, not what's connected. */
     .zc-topo-badge--live {
         background-color: rgba(56, 189, 248, 0.15);
-        color: #38bdf8;
+        color: #0ea5e9;
     }
 
     .zc-topo-badge--active {
         background-color: rgba(34, 197, 94, 0.15);
-        color: #4ade80;
+        color: #16a34a;
     }
 
     .zc-topo-badge--disabled {
         background-color: rgba(148, 163, 184, 0.15);
-        color: #94a3b8;
+        color: #64748b;
     }
 
     .zc-topo-badge--empty {
-        background-color: rgba(148, 163, 184, 0.08);
-        color: rgba(255, 255, 255, 0.4);
+        background-color: rgba(148, 163, 184, 0.1);
+        color: var(--zc-text-muted);
+    }
+
+    .dark .zc-topo-badge--live {
+        color: #38bdf8;
+    }
+
+    .dark .zc-topo-badge--active {
+        color: #4ade80;
+    }
+
+    .dark .zc-topo-badge--disabled {
+        color: #94a3b8;
     }
 
     @media (prefers-reduced-motion: reduce) {
 
         .fi-section,
         .fi-wi-widget,
+        .fi-wi-stats-overview-stat,
         .fi-btn,
         .fi-icon-btn,
         .fi-ta-row,

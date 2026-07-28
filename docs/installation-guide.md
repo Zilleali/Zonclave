@@ -75,6 +75,7 @@ A quick orientation - **[user-guide.md](user-guide.md) has the full screen-by-sc
 - **Sessions** (`/admin/session-logs`): who's connected right now and who's connected recently, sourced from FreeRADIUS accounting - device MAC, VLAN-assigned IP, connect/disconnect time, and a known-egress-IP reference per VLAN.
 - **Tunnel Egress IPs** (`/admin/tunnel-egress-ips`): a manually-confirmed reference of each VLAN's current residential exit IP, shown alongside sessions.
 - **VLANs** (`/admin/provisioned-vlans`): add or delete which VLANs a PPSK can be assigned to - no more editing `.env` and running a command on the server. Delete is blocked if a PPSK still uses that VLAN.
+- **Backups** (`/admin/backups`): full-database backups, on demand or automatically once a day (newest 14 kept). Download or delete any backup directly from the panel.
 - **Admin Log** (`/admin/admin-logs`): a read-only audit trail of every login and every PPSK create/edit/enable/disable/delete/regenerate action. No way to edit or delete an entry through the panel - it's append-only by design.
 - **Profile** (`/admin/profile`): change the admin password. Email is locked read-only (Section 16.1: single admin, nothing to reconcile it against).
 

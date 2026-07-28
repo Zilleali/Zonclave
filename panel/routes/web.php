@@ -1,7 +1,10 @@
 <?php
 
+use App\Models\Backup;
 use App\Support\DocsMarkdownRenderer;
+use Filament\Http\Middleware\Authenticate;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 Route::get('/', fn () => view('landing'));
 Route::get('/docs', fn () => view('docs.index'));
@@ -68,3 +71,16 @@ Route::get('/docs/changelog', fn (DocsMarkdownRenderer $renderer) => view('docs.
 
 Route::get('/docs/site-configuration', fn () => view('docs.site-configuration'));
 Route::get('/docs/troubleshooting', fn () => view('docs.troubleshooting'));
+
+// Everything above is public and unauthenticated by design (Section 25 of
+// the developer guide). This one route is the exception - a real browser
+// download, which a Livewire action inside the admin panel can't trigger
+// directly (BackupsTable's Download action links here). Uses Filament's own
+// Authenticate middleware (not the generic 'auth' alias) so an
+// unauthenticated request redirects to the panel's actual login page rather
+// than erroring on Laravel's default `route('login')` lookup, which this
+// app never defines - Filament's login route has its own name
+// (CLAUDE.md Section 16.8).
+Route::middleware(Authenticate::class)->get('/admin/backups/{backup}/download', function (Backup $backup) {
+    return Storage::disk('local')->download($backup->disk_path, $backup->filename);
+})->name('backups.download');

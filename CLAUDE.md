@@ -6,7 +6,7 @@
 **Status:** Phase 1 - In Progress (dev environment active)
 **Client:** Sancover
 **Developer & Network Engineer:** ZILL E ALI (Developer Zon)
-**Last updated:** 2026-07-28 (VLAN management from the panel: add/delete provisioned VLANs; Sessions page now shows the RADIUS disconnect reason)
+**Last updated:** 2026-07-28 (full database backups, live "connected now" count on the Network Topology dashboard)
 
 This file is the single source of truth for the project. Anyone picking up implementation work, human or AI-assisted, should read it in full before writing any config or code. Section numbers are stable. Do not renumber sections 1 to 22, since the kickoff prompt references them directly. Add new material as new trailing sections.
 
@@ -435,7 +435,7 @@ Whichever stack is chosen, it reads and writes `ppsk_groups` as the source of tr
 - Search/filter by label or VLAN.
 - Action buttons per row: Edit, Enable/Disable toggle, Delete (with confirmation). Regenerate password is not a separate button (decision reversed 2026-07-25, client request) - it lives inside the Edit modal, gated behind a "Regenerate password" toggle that is off by default, so opening Edit never silently issues a new credential.
 - "Add New PPSK" button (top of page) opens the Create form.
-- Phase 1: no live connection status here (that is Phase 2's device activity log and Section 13 health data). Phase 1 dashboard is inventory only.
+- Phase 1: mostly inventory, not live device/tunnel health (that stays Section 13 Phase 2) - the one exception is the Network Topology widget's "connected now" count per VLAN (Section 16.8, added 2026-07-28), a snapshot-at-page-load session count, not a health/polling feed.
 - No polling. Live data loads on demand only (manual refresh or explicit button). Do not add timed auto-refresh.
 
 #### 16.3 Create / Edit PPSK Form
@@ -483,6 +483,20 @@ This turned out cheaper than the original Phase 2 framing assumed: `radacct` alr
 - **Stale-session heuristic:** UniFi does not always send a clean Acct-Stop when a device just dies or loses power, so a session with no stop record would otherwise show as "Connected" forever. A session reads as **Stale** once its last known activity (`acctupdatetime`, falling back to `acctstarttime`) is more than 15 minutes old with no stop recorded; genuinely closed sessions (`acctstoptime` set) always read as **Disconnected**.
 - **Egress IP is deliberately not live.** There is no OPNsense API integration yet (Section 19 is still Phase 2), so the panel has no way to ask a tunnel what public IP it's using right now. Instead, `App\Filament\Resources\TunnelEgressIps` is a small manually-maintained reference: one row per currently-provisioned VLAN, admin-edited whenever a tunnel's actual residential IP is confirmed (the same data already tracked by hand in Section 26.10/26.11's tables). The Session Log shows it labeled "known egress IP," explicitly not a live per-session measurement - do not present it as verified traffic routing.
 - **Network-side prerequisite, still open:** the panel code alone shows no real sessions until FreeRADIUS accounting is actually enabled (the `accounting { sql }` block in the site config, matching the same `use_tunneled_reply`-style per-host config class of fix as Section 26.7) and the UniFi SSID's RADIUS profile has Accounting turned on (port 1813, same shared secret as auth). See Section 20's open items.
+
+#### 16.8 Full database backups (added 2026-07-28, client request)
+
+No backup existed before this - if the server were lost, the entire PPSK registry, VLAN list, admin log, and session history would go with it.
+
+- **Scope: full database**, not just the registry tables - a single `pg_dump --format=custom` of the active PostgreSQL database, restorable with `pg_restore`. Postgres-only by design (this backs up the *production* database); `App\Services\BackupService::create()` throws a clear error rather than silently producing a broken file if the active connection isn't `pgsql` (true of local sqlite dev by design).
+- **Two trigger paths, one service:** an on-demand "Backup now" button (`App\Filament\Resources\Backups`) and a daily scheduled run at 03:00 (`php artisan zonclave:backup`, registered in `bootstrap/app.php`'s `withSchedule()`) both call the same `BackupService::create()`, so retention and logging behave identically regardless of trigger.
+- **Retention:** the newest `config('zonclave.backup_retention')` backups are kept (default 14, roughly two weeks of daily backups); older ones are pruned automatically after each new backup. Auto-pruning is not written to `admin_log` (Section 17 is about admin actions, not routine housekeeping) - an admin-triggered delete from the Backups page is.
+- **Storage:** `storage/app/private/backups/` - the `local` disk's private root, confirmed not web-accessible (unlike `storage/app/public`). A lightweight `backups` table (filename, disk path, size) is the only thing the panel queries to list/download/prune - the dump content itself is never read back into the app.
+- **Download** goes through a real route (`GET /admin/backups/{backup}/download`, `panel/routes/web.php`), not a Livewire action - a browser file download can't be triggered from an AJAX-driven Filament action. Gated by Filament's own `Authenticate` middleware, the same guard the rest of the panel uses.
+- **Security note:** a full dump includes `ppsk_groups.password_hash`, but that value is `Crypt::encryptString()`-encrypted with `APP_KEY`, which lives only in `.env`, never in the database (Section 14) - so a leaked backup file alone cannot decrypt any PSK. No RADIUS shared secret is ever in the database (Section 15's existing boundary).
+- **Still open, one-time manual step:** this is the first Laravel-scheduled task in this app, so it needs the one-time scheduler crontab entry. New installs get it automatically (`installer/install-ubuntu22.04.sh`'s `configure_services()` stage); the already-live Kelder node needs it added once by hand - see Section 20.
+
+**Network Topology enhancement (same date):** the Dashboard's topology diagram (`App\Filament\Widgets\NetworkTopologyWidget`) now also shows a "connected now" count per VLAN, using the same "open session" definition (`whereNull('acctstoptime')`) the Sessions page's own filter already uses - one more snapshot-at-page-load data point, not a new polling surface (Section 23.3 is unaffected).
 
 ### Phase 2 additions to the panel (not built in Phase 1, listed for planning only)
 
@@ -599,6 +613,7 @@ This is only feasible cleanly because of the service-layer separation in Section
 - [ ] UniFi: RADIUS profile + SSID pointed at 192.168.1.175 with the shared secret from the install summary (Section 8.3)
 - [ ] Full Section 21 acceptance test pass end to end, once the network side above is in place
 - [ ] Enable FreeRADIUS accounting (`accounting { sql }` in the site config) and the UniFi SSID RADIUS profile's Accounting toggle (port 1813, same shared secret as auth), so Section 16.6's Session Log shows real sessions - the panel code alone shows nothing until this network-side step is done
+- [ ] Add the Laravel scheduler crontab entry to the already-live Kelder node (Section 16.8's backup feature needs it; new installs get it automatically): `( sudo crontab -u www-data -l 2>/dev/null; echo "* * * * * cd /opt/zonclave && php artisan schedule:run >> /dev/null 2>&1" ) | sudo crontab -u www-data -`
 
 ## 21. Acceptance Testing (Phase 1)
 

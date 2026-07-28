@@ -6,7 +6,7 @@ Everything here lives behind `/admin` and requires logging in first - none of it
 
 ## 1. Dashboard
 
-The home page after logging in. Stat cards for total, active, and disabled PPSK groups, each one clickable through to a pre-filtered list, plus a short registry-growth chart. This page loads data once, on open - there's no live auto-refreshing counter anywhere in the panel, so a stat card is only ever as fresh as your last page load or manual refresh.
+The home page after logging in. A Network Topology diagram shows every provisioned VLAN with its subnet and tunnel name, how many PPSKs are active/disabled on it, and how many devices are connected right now. Below that, stat cards for total, active, and disabled PPSK groups, each one clickable through to a pre-filtered list, plus a short registry-growth chart. This page loads data once, on open - there's no live auto-refreshing counter anywhere in the panel, so anything here is only ever as fresh as your last page load or manual refresh (including the "connected now" count - it's a snapshot, not a live feed).
 
 ## 2. PPSK Groups
 
@@ -78,15 +78,25 @@ The list of VLANs a PPSK can be assigned to - this is what populates the VLAN dr
 
 This only manages which VLANs the *panel* knows about. It does not create, modify, or remove anything on OPNsense (the actual VLAN interface, WireGuard tunnel, or firewall rules) - that side is still built and torn down manually, per [opnsense-configuration.md](opnsense-configuration.md).
 
-## 6. Admin Log
+## 6. Backups
 
-A read-only history: every admin login (success or failure), and every PPSK created, edited, enabled, disabled, deleted, or password-regenerated, plus every VLAN added or deleted. Filterable by action type. There is no way to edit or delete an entry - it's an audit trail, not a working list.
+A full backup of the database - the entire PPSK registry, VLAN list, admin log, and session history. One is taken automatically every day; the newest 14 are kept, older ones are removed automatically.
 
-## 7. Profile
+- **Backup now** creates one immediately, in addition to the daily automatic one - useful right before a risky change.
+- **Download** saves the backup file to your computer. It's a `pg_dump` archive (`.dump`), restorable with `pg_restore` - not something you open directly.
+- **Delete** removes a backup you don't need to keep. This only affects the backup file itself, never the live data.
+
+A backup file is only ever readable by whoever can already reach this page - and even if one leaked, the stored Wi-Fi passwords inside it are encrypted with a key that isn't in the database, so it can't be decrypted from the backup alone.
+
+## 7. Admin Log
+
+A read-only history: every admin login (success or failure), and every PPSK created, edited, enabled, disabled, deleted, or password-regenerated, plus every VLAN or backup added/deleted. Filterable by action type. There is no way to edit or delete an entry - it's an audit trail, not a working list.
+
+## 8. Profile
 
 Change the admin account's own password. The email address is locked read-only, since there's only ever one admin account in Phase 1 and nothing to reconcile a changed email against.
 
-## 8. Something looks wrong - where to check next
+## 9. Something looks wrong - where to check next
 
 | Symptom | Likely first thing to check |
 | --- | --- |
@@ -97,5 +107,6 @@ Change the admin account's own password. The email address is locked read-only, 
 | A disabled PPSK's device is still online | Expected - disabling blocks the *next* connection attempt, not an already-connected session. Kick it from UniFi if you need it off immediately. |
 | Can't delete a VLAN | It's still assigned to a PPSK (see Section 5) - the error names which one. Delete or move that PPSK to a different VLAN first. |
 | A VLAN I need isn't in the dropdown | Add it from the VLANs page (Section 5) - it's no longer a server-side/CLI step. |
+| "Backup now" fails | Backups require a PostgreSQL database - if this is a local/dev copy running on something else, that's expected, not a bug. |
 
 For anything network-side (VLANs, tunnels, firewall rules), see [opnsense-configuration.md](opnsense-configuration.md) and, for this specific deployment, [Site Configuration](/docs/site-configuration) and [Troubleshooting](/docs/troubleshooting).

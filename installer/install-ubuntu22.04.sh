@@ -594,6 +594,21 @@ EOF
   systemctl enable --now php8.3-fpm >>"$LOG_FILE" 2>&1
   systemctl restart php8.3-fpm nginx >>"$LOG_FILE" 2>&1
   ok "Web server configured for $(resolved_app_url)/"
+
+  # Laravel's task scheduler (bootstrap/app.php's withSchedule()) needs
+  # exactly one crontab entry - Laravel's own Schedule facade decides what
+  # actually runs and when, not this line. The daily database backup
+  # (CLAUDE.md Section 16.8) is the first thing that needs it. Runs as
+  # www-data, matching the panel's own file ownership, so backup files land
+  # under storage/app/private with the same owner as everything else the
+  # app writes - not root's crontab, which would create a permission
+  # mismatch. Idempotent: replaces any prior line with the same command
+  # rather than appending a duplicate on re-run.
+  if [ "${PANEL_DEPLOYED:-false}" = "true" ]; then
+    local cron_line="* * * * * cd ${PANEL_DIR} && php artisan schedule:run >> /dev/null 2>&1"
+    ( crontab -u www-data -l 2>/dev/null | grep -vF "artisan schedule:run" ; echo "$cron_line" ) | crontab -u www-data -
+    ok "Scheduler crontab entry installed (www-data)."
+  fi
 }
 
 # ---------------------------------------------------------------------------

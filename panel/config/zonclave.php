@@ -23,4 +23,9 @@ return [
     // /opt/zonclave (/opt/docs) so this same relative path resolves in
     // both places without an environment-specific branch.
     'docs_path' => env('ZONCLAVE_DOCS_PATH', base_path('../docs')),
+
+    // How many full-database backups App\Services\BackupService keeps
+    // (Section 16.8) before pruning the oldest - roughly two weeks at the
+    // default daily schedule.
+    'backup_retention' => (int) env('ZONCLAVE_BACKUP_RETENTION', 14),
 ];

@@ -4,6 +4,11 @@ What changed, and when. Newest first. The topmost entry is the current version -
 
 Version numbers are `0.x` on purpose: Phase 1 (CLAUDE.md's own definition of done) hasn't fully signed off yet - see the still-open items in CLAUDE.md Section 20 and the acceptance tests in Section 21.1. `1.0.0` is reserved for when that full pass is complete.
 
+## 0.6.0 - 2026-07-28
+
+- Added **full database backups**: a "Backup now" button in the panel, plus an automatic backup every day, both kept for two weeks by default. Download or delete any backup directly from the Backups page.
+- The Dashboard's Network Topology diagram now shows a live "connected now" count per VLAN, alongside the existing active/disabled PPSK counts.
+
 ## 0.5.1 - 2026-07-28
 
 - The Sessions page now shows **why** a device disconnected (the RADIUS termination reason reported by the access point - e.g. a normal disconnect vs. an idle timeout vs. losing the connection), not just when.

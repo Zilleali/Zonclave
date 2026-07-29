@@ -44,6 +44,9 @@ cmd_update() {
   [ -f "${PANEL_DIR}/.env" ] || die "No existing deployment at ${PANEL_DIR} (.env missing) - run installer/install-ubuntu22.04.sh first."
 
   : >"$LOG_FILE"
+  # World-readable by default (standard umask) - locked down as defense in
+  # depth, same reasoning as the full installer's own log file.
+  chmod 600 "$LOG_FILE" 2>/dev/null || true
 
   # .git is owned by the checkout's normal user (CLAUDE.md Section 26.4),
   # not root or www-data. Pulling as root here would flip that ownership
@@ -98,8 +101,24 @@ cmd_update() {
   php artisan route:cache    >>"$LOG_FILE" 2>&1
   php artisan view:cache     >>"$LOG_FILE" 2>&1
 
+  # This exact block also lives in installer/install-ubuntu22.04.sh's
+  # deploy_panel() - that's the OTHER deploy path (first install, not just
+  # ongoing updates), and permission drift has bitten this project before
+  # (CLAUDE.md Section 26.4). Keep both copies in sync if this changes.
   chown -R www-data:www-data "$PANEL_DIR"
+  # 775/664, not 755/644 - lets a human admin added to the www-data group
+  # read/write these files directly over SSH for hands-on debugging,
+  # without needing sudo for every touch, while still excluding other
+  # users on the box entirely.
   find "$PANEL_DIR/storage" "$PANEL_DIR/bootstrap/cache" -type d -exec chmod 775 {} \; 2>/dev/null || true
+  find "$PANEL_DIR/storage" "$PANEL_DIR/bootstrap/cache" -type f -exec chmod 664 {} \; 2>/dev/null || true
+  # .env holds the database password and APP_KEY (Section 14's at-rest
+  # encryption key) - owner (www-data) and root only, never group or
+  # world, regardless of whatever umask was in effect when it was written.
+  [ -f "$PANEL_DIR/.env" ] && chmod 600 "$PANEL_DIR/.env"
+  # storage/app/private holds full database dumps once backups exist
+  # (Section 16.8) - locked down past the general storage tree's own 775.
+  [ -d "$PANEL_DIR/storage/app/private" ] && chmod 700 "$PANEL_DIR/storage/app/private"
 
   log "Restarting services"
   systemctl restart php8.3-fpm >>"$LOG_FILE" 2>&1 || die "php8.3-fpm restart failed. See ${LOG_FILE}."

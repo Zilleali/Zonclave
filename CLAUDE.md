@@ -6,7 +6,7 @@
 **Status:** Phase 1 - In Progress (dev environment active)
 **Client:** Sancover
 **Developer & Network Engineer:** ZILL E ALI (Developer Zon)
-**Last updated:** 2026-07-28 (architecture reversal - each location now runs its own independent Zonclave node, not one shared central server; Location 2 build started on `SancoverPC-5`, Section 27. Also this same date: panel UI/UX pass - backups, Sessions sub-pages, manageable columns, light theme, About pages + social links, sidebar reorder - see Section 16's trailing subsections for the full list)
+**Last updated:** 2026-07-29 (installer permission hardening - Section 26.4 - while building Location 2 on `SancoverPC-5`, Section 27). 2026-07-28: architecture reversal - each location now runs its own independent Zonclave node, not one shared central server. Also that date: panel UI/UX pass - backups, Sessions sub-pages, manageable columns, light theme, About pages + social links, sidebar reorder - see Section 16's trailing subsections for the full list
 
 This file is the single source of truth for the project. Anyone picking up implementation work, human or AI-assisted, should read it in full before writing any config or code. Section numbers are stable. Do not renumber sections 1 to 22, since the kickoff prompt references them directly. Add new material as new trailing sections.
 
@@ -668,6 +668,7 @@ This is only feasible cleanly because of the service-layer separation in Section
 - [ ] Enable FreeRADIUS accounting (`accounting { sql }` in the site config) and the UniFi SSID RADIUS profile's Accounting toggle (port 1813, same shared secret as auth), so Section 16.6's Session Log shows real sessions - the panel code alone shows nothing until this network-side step is done
 - [ ] Add the Laravel scheduler crontab entry to the already-live Kelder node (Section 16.8's backup feature needs it; new installs get it automatically): `( sudo crontab -u www-data -l 2>/dev/null; echo "* * * * * cd /opt/zonclave && php artisan schedule:run >> /dev/null 2>&1" ) | sudo crontab -u www-data -`
 - [ ] Location 2 Zonclave node build on `SancoverPC-5` - in progress, see Section 27 for hardware/status tracking and the full still-open checklist
+- [ ] Re-run the full installer once on the already-live Kelder node (or manually re-copy `scripts/zonclave-update.sh` to `/usr/local/bin/zonclave`) to pick up the 2026-07-29 permission hardening (Section 26.4) - `zonclave update` never refreshes its own installed CLI binary
 
 ## 21. Acceptance Testing (Phase 1)
 
@@ -872,6 +873,15 @@ The production deployment (`install-ubuntu22.04.sh`) lives at `/opt/zonclave`, s
 - **Never run `chown -R` from /var/www/Zonclave (the repo root).** Always run from /var/www/Zonclave/panel. Running from the repo root changes .git ownership to www-data and breaks `git pull` with "Permission denied on .git/FETCH_HEAD".
 - **storage/framework/views must be writable by www-data.** If Blade falls back to system tmp, Laravel raises a fatal ErrorException. Fix: `sudo chown -R www-data:www-data /var/www/Zonclave/panel/storage/framework`
 - **database/ directory and database.sqlite must be writable by www-data** when using SQLite. Fix: `sudo chown www-data:www-data /var/www/Zonclave/panel/database /var/www/Zonclave/panel/database/database.sqlite`
+
+**Installer permission hardening (added 2026-07-29, client request while building Location 2):** the rules above are for hand-fixing the *dev checkout* (`/var/www/Zonclave/panel`). The production deploy path (`/opt/zonclave`, both `install-ubuntu22.04.sh`'s `deploy_panel()` and `zonclave-update.sh`'s `cmd_update()`) already did a `chown -R www-data:www-data` plus a directory-only `chmod 775`, every single run of either script - not a one-time fix, so drift shouldn't recur there. Hardened further, identically in both scripts (they duplicate this block on purpose, cross-referenced by comment in each, since a shared sourced lib file would need its own one-time re-copy step on already-deployed nodes to pick up):
+
+- `chmod 664` now also applied to **files** inside `storage`/`bootstrap/cache`, not just directories (matches standard Laravel deployment guidance - directories need the execute bit to be traversable, files don't).
+- **`.env` locked to `chmod 600`** - it holds the database password and the Section 14 at-rest encryption key (`APP_KEY`), regardless of whatever umask was in effect when the file was written.
+- **`storage/app/private` locked to `chmod 700`** - holds full database dumps once backups exist (Section 16.8), tighter than the general storage tree's own 775.
+- **Install/update log files (`/var/log/ppsk-install.log`, `/var/log/zonclave-update.log`) now `chmod 600`** at creation - previously world-readable by default umask. Defense in depth (Section 23.2: redact secrets from logs) - nothing currently logs a secret deliberately, but captured command output shouldn't be readable by every user on the box regardless.
+
+**Already-deployed nodes (Kelder) need one manual step to pick this up**: `zonclave update` redeploys the *panel* code, but never re-copies its own `/usr/local/bin/zonclave` binary - that only happens during the full installer's `install_cli()` stage. Re-run `sudo bash installer/install-ubuntu22.04.sh` once (safe and idempotent per Section 26.9 - it will not rotate secrets) to pick up the updated CLI script, or manually `cp scripts/zonclave-update.sh /usr/local/bin/zonclave` from a current checkout.
 
 ### 26.5 Installer bugs found and fixed against this VM (2026-07-16)
 
@@ -1175,10 +1185,14 @@ the DNS redirect rules. Monitor IPs must be unique - continue with e.g.
 ## 27. Location 2 Deployment (started 2026-07-28)
 
 Build started on the second location's Zonclave server, using the exact
-same installer path validated at Kelder: `installer/hyperv-ubuntu22.04-setup.md`
-and `installer/install-ubuntu22.04.sh`. No new installer work needed - this
-section exists to track this specific deployment's own hardware and
-progress, the same way Section 26 tracks Kelder's.
+same installer validated at Kelder (`installer/install-ubuntu22.04.sh`).
+The steps themselves are written up as their own Location 2-specific
+runbook, `installer/hyperv-location2-setup.md` (client request
+2026-07-28), with `SancoverPC-5`'s actual confirmed IPs baked in rather
+than the generic guide's `.250` placeholder. This section exists to track
+this specific deployment's own hardware and progress, the same way
+Section 26 tracks Kelder's; the runbook is the actionable steps, this
+section is the decision record if the two ever disagree.
 
 **Architecture note:** this is the first deployment built after the
 Section 3.3 reversal - each location gets its own fully independent

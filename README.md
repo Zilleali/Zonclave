@@ -171,7 +171,7 @@ sudo bash installer/install-ubuntu22.04.sh
 sudo bash installer/install-ubuntu22.04.sh --config installer.conf
 ```
 
-See `installer/hyperv-ubuntu22.04-setup.md` for the full Hyper-V-on-Windows walkthrough.
+See `installer/hyperv-ubuntu22.04-setup.md` for the full Hyper-V-on-Windows walkthrough (generic, one static IP to swap in). `installer/hyperv-location2-setup.md` is the same walkthrough with Location 2's (`SancoverPC-5`) actual confirmed IPs already filled in - see CLAUDE.md Section 27 for that deployment's status.
 
 ### Encrypted delivery (Section 24.5)
 

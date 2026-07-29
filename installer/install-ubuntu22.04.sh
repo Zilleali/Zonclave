@@ -134,6 +134,12 @@ preflight() {
 
   mkdir -p "$STATE_DIR"; chmod 700 "$STATE_DIR"
   : > "$LOG_FILE" || true
+  # World-readable by default (standard umask) - command output captured
+  # here could in principle echo back a secret (e.g. a verbose psql/composer
+  # trace), so this is locked down as defense in depth even though nothing
+  # currently logs one deliberately (CLAUDE.md Section 23.2: redact secrets
+  # from all logs and error output).
+  chmod 600 "$LOG_FILE" 2>/dev/null || true
 
   if [ -f "${STATE_DIR}/installed" ]; then
     warn "A previous install was detected. Re-running is safe and will reconcile config."
@@ -495,8 +501,25 @@ deploy_panel() {
 
   create_admin_user
 
+  # This exact block also lives in scripts/zonclave-update.sh's cmd_update()
+  # - that's the OTHER deploy path (ongoing code updates, not just first
+  # install), and permission drift has bitten this project before
+  # (CLAUDE.md Section 26.4). Keep both copies in sync if this changes.
   chown -R www-data:www-data "$PANEL_DIR"
+  # 775/664, not 755/644 - lets a human admin added to the www-data group
+  # read/write these files directly over SSH for hands-on debugging,
+  # without needing sudo for every touch, while still excluding other
+  # users on the box entirely.
   find "$PANEL_DIR/storage" "$PANEL_DIR/bootstrap/cache" -type d -exec chmod 775 {} \; 2>/dev/null || true
+  find "$PANEL_DIR/storage" "$PANEL_DIR/bootstrap/cache" -type f -exec chmod 664 {} \; 2>/dev/null || true
+  # .env holds the database password and APP_KEY (Section 14's at-rest
+  # encryption key) - owner (www-data) and root only, never group or
+  # world, regardless of whatever umask was in effect when it was written.
+  [ -f "$PANEL_DIR/.env" ] && chmod 600 "$PANEL_DIR/.env"
+  # storage/app/private holds full database dumps once backups exist
+  # (Section 16.8, includes the encrypted PSK column but still a full
+  # export) - locked down past the general storage tree's own 775 above.
+  [ -d "$PANEL_DIR/storage/app/private" ] && chmod 700 "$PANEL_DIR/storage/app/private"
 
   PANEL_DEPLOYED="true"
   ok "Panel deployed at ${PANEL_DIR}."

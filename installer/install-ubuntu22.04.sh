@@ -629,7 +629,13 @@ EOF
   # rather than appending a duplicate on re-run.
   if [ "${PANEL_DEPLOYED:-false}" = "true" ]; then
     local cron_line="* * * * * cd ${PANEL_DIR} && php artisan schedule:run >> /dev/null 2>&1"
-    ( crontab -u www-data -l 2>/dev/null | grep -vF "artisan schedule:run" ; echo "$cron_line" ) | crontab -u www-data -
+    # `crontab -l` exits non-zero when www-data has no crontab yet (a fresh
+    # install), and `grep -v` on the resulting empty input also exits
+    # non-zero (0 lines selected) - both are the normal, expected case here,
+    # not a real failure. Without `|| true`, set -e/pipefail would abort the
+    # whole installer at this line on any host where www-data never had a
+    # prior crontab, silently skipping install_cli/self_check/summary too.
+    ( crontab -u www-data -l 2>/dev/null | grep -vF "artisan schedule:run" || true ; echo "$cron_line" ) | crontab -u www-data -
     ok "Scheduler crontab entry installed (www-data)."
   fi
 }

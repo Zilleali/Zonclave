@@ -678,7 +678,20 @@ self_check() {
       | head -1 | sed -E 's/.*secret[[:space:]]*=[[:space:]]*"?([^"[:space:]]+)"?.*/\1/')"
     localhost_secret="${localhost_secret:-$RADIUS_SECRET}"
 
-    if radtest ppsk_group001 "${SEED_PSK_1}" 127.0.0.1 0 "${localhost_secret}" 2>>"$LOG_FILE" | grep -q "Access-Accept"; then
+    # Read the live password back from radcheck rather than trusting
+    # SEED_PSK_1 - unlike DB_PASSWORD/RADIUS_SECRET, the seed PSK is
+    # regenerated fresh on every run (gen_psk() has no re-run reuse logic),
+    # but seed_test_groups()'s INSERT is WHERE NOT EXISTS-guarded, so on a
+    # re-run the row keeps whatever password an earlier run originally set.
+    # Testing against this run's freshly-generated (and now wrong) value
+    # produces a false "Access-Accept not returned" warning even though
+    # FreeRADIUS is working correctly.
+    local live_psk_1
+    live_psk_1="$(sudo -u postgres psql -d "${DB_NAME}" -tAc \
+      "SELECT value FROM radcheck WHERE username = 'ppsk_group001' AND attribute = 'Cleartext-Password' LIMIT 1;" 2>>"$LOG_FILE")"
+    live_psk_1="${live_psk_1:-$SEED_PSK_1}"
+
+    if radtest ppsk_group001 "${live_psk_1}" 127.0.0.1 0 "${localhost_secret}" 2>>"$LOG_FILE" | grep -q "Access-Accept"; then
       ok "RADIUS auth smoke test passed (ppsk_group001 -> Access-Accept)."
     else
       warn "RADIUS auth smoke test did not return Access-Accept. Review ${LOG_FILE}."

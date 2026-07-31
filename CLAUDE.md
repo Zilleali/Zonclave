@@ -55,7 +55,7 @@ Admin browser ---> Web Panel (auth-gated) ---> ppsk_groups (source of truth)
 | Location | Router | Status |
 | --- | --- | --- |
 | Office SancoMedia Kelder (basement) | Protectli FW6E - OPNsense | Phase 1 start point |
-| Location 2 | Protectli FW6E - OPNsense | Phase 1, after Location 1 validated |
+| Location 2 - Office SancoMedia main (confirmed site name 2026-07-31, see Section 27) | Protectli FW6E - OPNsense | Phase 1, after Location 1 validated |
 | Location 3 | Protectli FW6E - OPNsense | Phase 1, after Location 1 validated |
 
 Note: client has 4 x Protectli FW6E units total. The 4th is a spare or future location. Phase 1 covers the 3 active locations.
@@ -1197,6 +1197,24 @@ than the generic guide's `.250` placeholder. This section exists to track
 this specific deployment's own hardware and progress, the same way
 Section 26 tracks Kelder's; the runbook is the actionable steps, this
 section is the decision record if the two ever disagree.
+
+**Site name and VM naming convention (confirmed 2026-07-31):** Location 2's
+actual site name is **Office SancoMedia main** (as opposed to Location 1,
+the basement - "Kelder" - of the same client). The client refers to each
+site's Zonclave VM by a short label when reporting issues, useful shorthand
+to carry into any future troubleshooting exchange:
+
+| VM label | Site |
+| --- | --- |
+| `zonclave-vm1` | Office SancoMedia Kelder (Location 1, Section 26) |
+| `zonclave-vm2` | Office SancoMedia main (Location 2, this section) |
+
+This is a reference label only - it does not change anything about the
+actual VM name inside Hyper-V, the installer, or any config file. Per
+Section 3.3's architecture reversal, each of these is still a fully
+independent node with its own FreeRADIUS/panel/PostgreSQL/PPSK registry;
+the `vm1`/`vm2` labels are purely a human shorthand for "which site is this
+issue about," not a technical identifier the code or infra reads anywhere.
 
 **Architecture note:** this is the first deployment built after the
 Section 3.3 reversal - each location gets its own fully independent

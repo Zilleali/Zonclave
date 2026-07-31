@@ -24,6 +24,7 @@ enum AdminLogAction: string
     case VlanDeprovisioned = 'vlan_deprovisioned';
     case BackupCreated = 'backup_created';
     case BackupDeleted = 'backup_deleted';
+    case SessionDeleted = 'session_deleted';
 
     public function label(): string
     {
@@ -41,13 +42,14 @@ enum AdminLogAction: string
             self::VlanDeprovisioned => 'VLAN deleted',
             self::BackupCreated => 'Backup created',
             self::BackupDeleted => 'Backup deleted',
+            self::SessionDeleted => 'Session deleted',
         };
     }
 
     public function color(): string
     {
         return match ($this) {
-            self::AdminLoginFailed, self::PpskDeleted, self::VlanDeprovisioned, self::BackupDeleted => 'danger',
+            self::AdminLoginFailed, self::PpskDeleted, self::VlanDeprovisioned, self::BackupDeleted, self::SessionDeleted => 'danger',
             self::PpskDisabled => 'warning',
             default => 'success',
         };
@@ -72,6 +74,7 @@ enum AdminLogAction: string
             self::VlanDeprovisioned => 'heroicon-o-trash',
             self::BackupCreated => 'heroicon-o-archive-box',
             self::BackupDeleted => 'heroicon-o-trash',
+            self::SessionDeleted => 'heroicon-o-signal-slash',
         };
     }
 }

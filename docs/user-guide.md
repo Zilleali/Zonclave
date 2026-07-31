@@ -69,6 +69,10 @@ The disconnect reason is whatever the access point itself reported (e.g. `User-R
 
 On **All Sessions**, filter by VLAN, or toggle "currently connected only" to hide everything except live sessions (the other three pages skip that toggle, since they're already pre-filtered to one status). Every page also lets you hide columns you don't need - see "Manageable columns" at the end of this section.
 
+**These four pages update themselves every 10 seconds** - a device connecting or disconnecting shows up on its own, no manual refresh needed. This is the one place in the panel that works this way; everywhere else still only loads on demand.
+
+Each row also has a **Delete** action - this removes the row from the session history only. It has no effect on the device itself and no effect on whether that PPSK can still authenticate; it's purely for clearing out old or irrelevant entries you don't want cluttering the list.
+
 This page shows nothing until FreeRADIUS accounting is actually turned on for this deployment - if it's empty and you expect sessions, that's the first thing to check, not a panel bug.
 
 ## 4. Tunnel Egress IPs

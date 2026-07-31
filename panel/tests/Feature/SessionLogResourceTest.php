@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Enums\AdminLogAction;
 use App\Filament\Resources\SessionLogs\Pages\ListSessionLogs;
 use App\Filament\Resources\SessionLogs\SessionLogResource;
+use App\Models\AdminLog;
 use App\Models\PpskGroup;
 use App\Models\RadiusAccounting;
 use App\Models\User;
@@ -13,10 +15,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
-// Read-only connected-device list UI (CLAUDE.md Section 16.6). Sourced from
-// radacct, which the panel never writes to (App\Models\RadiusAccounting) -
-// confirms sessions render, join to their PPSK group, and that there is no
-// way to create/edit/delete a session through the panel.
+// Connected-device list UI (CLAUDE.md Section 16.6). Sourced from radacct -
+// FreeRADIUS remains the sole writer of session data itself (the panel
+// never creates or edits a row), but as of 2026-07-31 an admin can delete a
+// stale/irrelevant row (App\Services\RadiusAccountingService) and the table
+// polls live (both deliberate, narrow exceptions - see the class comment on
+// SessionLogsTable for the full reasoning).
 class SessionLogResourceTest extends TestCase
 {
     use RefreshDatabase;
@@ -114,5 +118,41 @@ class SessionLogResourceTest extends TestCase
 
         Livewire::test(ListSessionLogs::class)
             ->assertTableColumnStateSet('acctterminatecause', 'User-Request', record: $session);
+    }
+
+    // A scoped, deliberate exception to Section 23.3's no-polling rule
+    // (client request 2026-07-31) - limited to the Sessions pages only.
+    public function test_table_polls_every_ten_seconds(): void
+    {
+        $table = Livewire::test(ListSessionLogs::class)->instance()->getTable();
+
+        $this->assertSame('10s', $table->getPollingInterval());
+    }
+
+    public function test_delete_action_removes_the_session_and_logs_it(): void
+    {
+        $group = PpskGroup::factory()->create(['radius_username' => 'ppsk_group001']);
+        $session = $this->makeSession(['username' => 'ppsk_group001']);
+
+        Livewire::test(ListSessionLogs::class)
+            ->callTableAction('delete', $session);
+
+        $this->assertSame(0, RadiusAccounting::query()->count());
+
+        $log = AdminLog::query()->latest('ts')->first();
+        $this->assertSame(AdminLogAction::SessionDeleted->value, $log->action);
+        $this->assertSame($group->id, $log->target_ppsk_id);
+        $this->assertStringContainsString('ppsk_group001', (string) $log->detail);
+    }
+
+    public function test_deleting_a_session_does_not_affect_the_ppsk_groups_own_row(): void
+    {
+        $group = PpskGroup::factory()->create(['radius_username' => 'ppsk_group001']);
+        $session = $this->makeSession(['username' => 'ppsk_group001']);
+
+        Livewire::test(ListSessionLogs::class)
+            ->callTableAction('delete', $session);
+
+        $this->assertNotNull(PpskGroup::query()->find($group->id));
     }
 }

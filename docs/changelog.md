@@ -4,6 +4,11 @@ What changed, and when. Newest first. The topmost entry is the current version -
 
 Version numbers are `0.x` on purpose: Phase 1 (CLAUDE.md's own definition of done) hasn't fully signed off yet - see the still-open items in CLAUDE.md Section 20 and the acceptance tests in Section 21.1. `1.0.0` is reserved for when that full pass is complete.
 
+## 0.6.8 - 2026-07-31
+
+- All four Sessions pages now update live every 10 seconds - no manual refresh needed to see a device connect or disconnect.
+- Added a **Delete** option on Sessions rows, for clearing out stale/irrelevant history. This only removes the row from the session log - it has no effect on whether that credential can still authenticate.
+
 ## 0.6.7 - 2026-07-28
 
 - Both About pages (public and in-panel) now show an actual photo instead of the initials placeholder.

@@ -9,7 +9,10 @@ use App\Enums\SessionStatus;
 use App\Models\PpskGroup;
 use App\Models\RadiusAccounting;
 use App\Models\TunnelEgressIp;
+use App\Services\RadiusAccountingService;
 use Carbon\CarbonInterface;
+use Filament\Actions\DeleteAction;
+use Filament\Facades\Filament;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -17,10 +20,19 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Number;
 
-// Connected-device / session list (CLAUDE.md Section 16.6). Newest first, no
-// row or bulk actions - this is a read-only view of FreeRADIUS's own radacct
-// table (Section 23.1's read-only counterpart). No polling (Section 23.3);
-// on-demand loads only, same as the PPSK list and the admin log.
+// Connected-device / session list (CLAUDE.md Section 16.6). Newest first.
+// Still a read-only view of FreeRADIUS's own radacct table in the sense
+// that matters (Section 23.1's boundary): FreeRADIUS remains the sole
+// writer of session data itself, the panel never creates or edits a row.
+// Two deliberate, narrow exceptions added 2026-07-31 (client request):
+// - Live polling (10s) - a scoped exception to Section 23.3's no-polling
+//   rule, limited to these four Sessions pages only, not the rest of the
+//   panel. Filament's poll() re-fetches the table's data via AJAX only -
+//   no page reload, no navigation - so "live" here never means a
+//   disruptive full-page refresh.
+// - A DeleteAction - lets an admin clear out a stale/irrelevant row
+//   (App\Services\RadiusAccountingService, the only path that deletes a
+//   radacct row, logged to admin_log same as every other admin action).
 class SessionLogsTable
 {
     // $scope narrows this to one of the Sessions sub-pages (Active PPSK
@@ -43,6 +55,7 @@ class SessionLogsTable
             ->modifyQueryUsing(fn (Builder $query): Builder => $scope === null
                 ? $query->with('ppskGroup')
                 : RadiusAccounting::applyStatusFilter($query->with('ppskGroup'), $scope))
+            ->poll('10s')
             ->defaultSort('acctstarttime', 'desc')
             ->columns([
                 TextColumn::make('status')
@@ -152,7 +165,17 @@ class SessionLogsTable
                         ->toggle(),
                 ] : []),
             ])
-            ->recordActions([])
+            ->recordActions([
+                DeleteAction::make()
+                    ->label('Delete')
+                    ->modalDescription('Removes this row from the session history permanently - it does not disconnect the device or affect its ability to reconnect.')
+                    ->using(function (RadiusAccounting $record): void {
+                        app(RadiusAccountingService::class)->delete(
+                            $record,
+                            Filament::auth()->user()?->getAttribute('email'),
+                        );
+                    }),
+            ])
             ->toolbarActions([]);
     }
 }

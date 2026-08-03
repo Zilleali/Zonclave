@@ -1306,6 +1306,21 @@ Zonclave node (own FreeRADIUS, panel, PostgreSQL, PPSK registry), not a
 shared server reached over a cross-site link. Location 2's server has no
 dependency on Kelder's `SancoverPC-4` staying up, and vice versa.
 
+**OPNsense handoff (added 2026-08-03, client request):** the client is
+hiring a separate person to finish and stabilize the OPNsense side of
+Location 2 (VLAN401-405) while ZILL focuses on Zonclave itself.
+`docs/runbook/phase1-location2-opnsense.md` is the handoff document for
+that person - Location 2's actual fixed values (VLAN block, subnet
+formula, interface names, all of which differ from Kelder's), current
+build status, and the real bugs found during today's troubleshooting
+(Section 27.4/27.5's `disableroutes` bug, the monitor-IP test-target
+trap, the missing outbound NAT gap on some VLAN401-405 interfaces still
+not yet fixed as of this writing, and the normal all-five-tunnels-restart
+behavior on any WireGuard config change). Same internal-only convention as
+`docs/runbook/phase1-opnsense-unifi.md` (not linked from any public page,
+not committed with real secrets - peer configs and the RADIUS shared
+secret are handed over directly, never through git).
+
 ### 27.1 Server hardware
 
 | Item | Value |

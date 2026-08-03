@@ -6,7 +6,7 @@
 **Status:** Phase 1 - In Progress (dev environment active)
 **Client:** Sancover
 **Developer & Network Engineer:** ZILL E ALI (Developer Zon)
-**Last updated:** 2026-07-31 (Sessions pages: live 10s polling and a delete action for stale rows, both deliberate scoped exceptions to standing panel rules - Section 16.6). 2026-07-29: installer permission hardening (Section 26.4) while building Location 2 on `SancoverPC-5` (Section 27). 2026-07-28: architecture reversal - each location now runs its own independent Zonclave node, not one shared central server. Also that date: panel UI/UX pass - backups, Sessions sub-pages, manageable columns, light theme, About pages + social links, sidebar reorder - see Section 16's trailing subsections for the full list
+**Last updated:** 2026-08-03 (Location 2 networking: Kelder's Hyper-V switch-corruption fix documented as Section 26.12; the WireGuard `disableroutes` LAN-wide outage bug (Section 27.4) turned out to affect all five VLAN401-405 tunnels, not just three, plus the same switch-corruption pattern on `SancoverPC-5` and a monitor-IP test-target trap - both written up in new Section 27.5). 2026-07-31: Sessions pages live 10s polling and a delete action for stale rows, both deliberate scoped exceptions to standing panel rules - Section 16.6. 2026-07-29: installer permission hardening (Section 26.4) while building Location 2 on `SancoverPC-5` (Section 27). 2026-07-28: architecture reversal - each location now runs its own independent Zonclave node, not one shared central server. Also that date: panel UI/UX pass - backups, Sessions sub-pages, manageable columns, light theme, About pages + social links, sidebar reorder - see Section 16's trailing subsections for the full list
 
 This file is the single source of truth for the project. Anyone picking up implementation work, human or AI-assisted, should read it in full before writing any config or code. Section numbers are stable. Do not renumber sections 1 to 22, since the kickoff prompt references them directly. Add new material as new trailing sections.
 
@@ -1186,6 +1186,90 @@ Network side: repeat runbook Section 3 per new VLAN (now including the
 the DNS redirect rules. Monitor IPs must be unique - continue with e.g.
 `9.9.9.9`, `149.112.112.112`, `208.67.222.222`, `208.67.220.220`.
 
+### 26.12 Windows network reset broke Hyper-V networking on the host - two-layer fix (2026-08-02)
+
+The client ran a Windows "reset network adapter" (or equivalent) on
+`SancoverPC-4` (the Kelder host, per Section 3.3). This is a real,
+recurring risk on this deployment model - worth knowing the fix cold if
+it happens again, here or at any future site using the same Hyper-V
+pattern.
+
+**Layer 1 - the External Switch reverted to Internal type.** `Get-VMSwitch`
+showed `External Switch` with `SwitchType: Internal` and no
+`NetAdapterInterfaceDescription` at all - i.e. not bound to the physical
+NIC. This is the exact same class of bug as the original Kelder setup
+(Section 3.3: "Was Internal switch (no network) - fixed 2026-07-16"), now
+recurring from a client-side reset rather than initial misconfiguration.
+**This is more severe than a host-management inconvenience** - an
+Internal-type switch means the VM has zero connectivity to the physical
+LAN at all, so real UniFi APs cannot reach it either. PPSK authentication
+for the whole site is down while this is broken, not just admin access to
+the host.
+
+Fix: `Set-VMSwitch -Name "External Switch" -NetAdapterName "Ethernet 2"
+-AllowManagementOS $true` rebinds it to the physical NIC and converts the
+type back to External in place.
+
+**Layer 2 - even after Layer 1, the host's own outbound path stayed
+broken, and this one is important to understand correctly.** After the
+switch fix, `ping 192.168.1.175` (VM) and unbound `ping 8.8.8.8` both
+looked fine - but this was a false positive. The host had two tied-metric
+default routes (Wi-Fi and `vEthernet (External Switch)`, both metric 0),
+and unbound pings were silently going out via Wi-Fi the whole time,
+masking that the vEthernet adapter's own path was still broken. The
+tell: `ping -S 192.168.1.174 192.168.1.1` (forcing the source IP,
+therefore forcing the real interface) returned `Destination host
+unreachable` consistently, and `arp -a` confirmed `vEthernet (External
+Switch)`'s interface had no ARP entry for the gateway at all, while
+Wi-Fi's did.
+
+**Key lesson for next time: `ping <VM-IP>` alone never proves the
+physical NIC/switch path is healthy.** Hyper-V can switch traffic between
+the host's own vEthernet adapter and a VM on the same virtual switch
+entirely in software, without the packets ever reaching the physical
+wire. Only a test that must leave the machine - the gateway, or
+`8.8.8.8` - and only when explicitly source-bound with `ping -S
+<host-ip> <target>` (not an unbound ping, which Windows may silently
+route via a different interface if multiple default routes tie) actually
+exercises the real physical path.
+
+**What did NOT fix it** (tried in this order, all failed, useful to skip
+straight past next time unless the symptom differs): disabling Realtek
+Energy-Efficient Ethernet / Green Ethernet / Power Saving Mode / Gigabit
+Lite / Large Send Offload v2 (the exact fix that resolved a *different*,
+genuinely driver-level intermittent-drop issue on `SancoverPC-5` the same
+day - see this section's own earlier VLAN401-405 work); disabling RSS;
+clearing the ARP cache (`netsh interface ip delete arpcache`). Physical
+link state was confirmed healthy throughout (1 Gbps, Connected, Full
+Duplex) - so this was never a cable/negotiation fault.
+
+**What actually fixed it: a full teardown and rebuild of the Hyper-V
+switch**, not any individual setting:
+
+```powershell
+Disconnect-VMNetworkAdapter -VMName "Zonclave"
+Remove-VMSwitch -Name "External Switch" -Confirm:$false
+New-VMSwitch -Name "External Switch" -NetAdapterName "Ethernet 2" -AllowManagementOS $true
+Connect-VMNetworkAdapter -VMName "Zonclave" -SwitchName "External Switch"
+```
+
+Then reassign the static IP on the freshly-created vEthernet adapter (a
+new interface index, not the old one) - watch for the same stale
+leftover default-gateway route this project has hit twice before
+(`New-NetIPAddress: Instance DefaultGateway already exists`); clear it
+first with `Remove-NetRoute -InterfaceAlias "vEthernet (External Switch)"
+-DestinationPrefix "0.0.0.0/0"` before adding the real one. This strongly
+suggests the root cause was corrupted/stale internal Hyper-V switch
+binding state (plausibly left over from the client's original reset, or
+from the Layer 1 Internal-to-External conversion itself), not a NIC
+driver setting at all - which is exactly why Layer 2's driver-level fixes
+never worked no matter how many were tried.
+
+Verify with the source-bound test specifically, not a plain ping:
+`ping -S <host-ip> <gateway-ip>` and `ping -S <host-ip> 8.8.8.8` both
+returning 0% loss is the real confirmation; `ping <VM-ip>` succeeding is
+not sufficient on its own, per the lesson above.
+
 ## 27. Location 2 Deployment (started 2026-07-28)
 
 Build started on the second location's Zonclave server, using the exact
@@ -1245,3 +1329,233 @@ Both addresses are low in the `192.168.1.0/24` range, likely below where Locatio
 - [ ] Apply the same three Windows host hardening settings as Kelder (Section 3.3) once the host OS is confirmed
 - [ ] OPNsense/UniFi manual config at Location 2 - VLANs 300-304 (or continue the open-ended block per Section 5, decide fresh vs. matching Kelder's exact VLAN IDs), WireGuard tunnels using Location 2's own peer configs (Section 20's still-open item on confirming these are ready), firewall allow/block rules per Sections 9-12
 - [ ] Full Section 21 acceptance test pass for Location 2, independent of Kelder's own pass (Section 26.6 item 5)
+- [ ] Re-verify `disableroutes = 1` on all five VLAN401-405 tunnels periodically, not just after initial provisioning - Section 27.5 found VLAN401/402 had silently drifted to (or never actually had) the correct value despite being assumed fine in Section 27.4
+
+### 27.3 Real-world findings (Location 2 build, 2026-07-31/08-01)
+
+Two genuine, non-obvious issues found and fixed while building `zonclave-vm2`
+(the client's own shorthand for this location - Section 27's own naming
+note above). Both cost significant debugging time and are recorded here so
+neither gets rediscovered from scratch at Location 3 or any future site.
+
+**Finding 1 - a WireGuard tunnel with only its peer half configured looks
+identical to a fully-built one until you check `wg show`.** Setting up
+`WG_VLAN401`'s peer config (the residential provider's endpoint) through
+OPNsense's GUI created a correct, complete entry under what this OPNsense
+version's os-wireguard plugin internally calls `wireguard.client.clients`
+(the "Endpoints" tab in the GUI) - but the actual "Local" instance, which
+holds this router's own private key and tunnel address and lives under
+`wireguard.server.servers` internally, was never created. Nothing in the
+GUI or config.xml looked obviously broken - `<client>` had every field
+correctly populated. Confirmed dead via `wg show WG_VLAN401` ("Device not
+configured") and `wg show`/`ifconfig | grep wg` (nothing at all - no kernel
+interface had ever been created). Root cause, confirmed by reading
+`wg-service-control.php` directly: it only ever creates interfaces for
+entries under `server.servers.server`; an empty `<servers/>` means the
+service-control script's loop runs zero times, silently.
+
+Fix: build the missing "Local" instance (Name, Private Key, Tunnel Address,
+MTU, and critically a Peers selection linking it to the already-created
+Endpoint) via **VPN > WireGuard > Local**, then `configctl wireguard
+configure`. If that GUI form doesn't expose a Peers picker, the verified
+raw XML field names (confirmed by reading the actual render template,
+`/usr/local/opnsense/service/templates/OPNsense/Wireguard/wireguard-server.conf`,
+not guessed) are: `enabled`, `name`, `interface`, `privkey`, `port`,
+`tunneladdress`, `mtu`, `disableroutes`, `gateway`, `peers` (comma-separated
+list of peer/Endpoint UUIDs). Always back up `/conf/config.xml` before any
+manual edit and validate with `xmllint --noout` before applying.
+
+**Finding 2 - a Hyper-V host that can ping its own VM's gateway but not the
+VM itself, with the VM equally unable to ping the host back, is very likely
+a misplaced static IP, not a driver/hypervisor bug.** Chased this through
+VMQ, SR-IOV, Large Send Offload, Energy-Efficient Ethernet, and Green
+Ethernet (all real, commonly-cited Hyper-V+Realtek culprits for this exact
+symptom, all checked or disabled, none of them were it) before finding the
+actual cause: the host's static IP (`192.168.1.5`, per Section 27.1) had
+been assigned to the **physical** NIC (`Ethernet 2` / Realtek PCIe GbE)
+instead of the **virtual** `vEthernet (LAN-Switch)` adapter Hyper-V creates
+once that physical NIC is bound to an External switch. Once a physical NIC
+is enslaved to a vSwitch, it should carry no IP of its own - all host-side
+traffic is supposed to flow through the vEthernet adapter instead, with the
+physical NIC acting as a pure passthrough. With the IP on the wrong
+adapter, Windows had a routing-table match (so pings stopped saying
+"unreachable" and started saying "timed out" instead, which looked like
+progress but wasn't) while the VM's traffic, actually bridged only through
+`vEthernet (LAN-Switch)`, kept hitting an interface that still only had a
+self-assigned APIPA address.
+
+Diagnosed via `Get-NetIPAddress -InterfaceIndex <n>` on both the physical
+adapter and the vEthernet one, comparing which actually held the static IP
+against which one Hyper-V reports as the VM's real bridge
+(`Get-VMNetworkAdapter -VMName <vm> | Select SwitchName`). Fix: remove the
+IP from the physical adapter, disable DHCP and add it fresh on the correct
+`vEthernet (<switch-name>)` adapter, using `-InterfaceIndex` rather than
+`-InterfaceAlias` to remove any ambiguity. Watch for a stale leftover
+default-gateway route blocking the re-add (`New-NetIPAddress: Instance
+DefaultGateway already exists`) if this has been attempted more than once -
+clear it first with `Remove-NetRoute -InterfaceIndex <n> -DestinationPrefix
+"0.0.0.0/0"` before re-adding the IP with its gateway.
+
+Verification for both: `wg show <tunnel>` for a real handshake, and `ping`
+in both directions between host and VM before assuming either fix actually
+worked - several intermediate states in both investigations looked like
+progress (a changed error message, a routable-looking address) without
+being the actual fix.
+
+### 27.4 Missing "Disable Routes" on 3 of 5 WireGuard tunnels broke the whole LAN, not just those VLANs (2026-08-02/03)
+
+While finishing VLAN403-405 at Location 2, enabling the WireGuard tunnels
+made the UniFi console unreachable and killed general internet for every
+device on the LAN - not just clients on VLAN403-405. This looked identical
+to a routing/switch-level outage (Section 27.3-adjacent symptoms) but had
+a completely different, OPNsense-config-level cause.
+
+**Root cause:** `WG_VLAN403`, `WG_VLAN404`, and `WG_VLAN405`'s Local
+instances had **Disable Routes unchecked** (`disableroutes = 0`), believed
+at the time to be unlike `WG_VLAN401`/`WG_VLAN402` which were assumed
+correctly checked. **That assumption was wrong - see Section 27.5**:
+401/402 had the exact same `disableroutes = 0` bug, just not yet
+triggered/noticed because those two tunnels hadn't been enabled/reconfigured
+since. With Disable Routes off, `wg-service-control.php`'s `wg_start()` tries
+to install each
+tunnel as a **system-wide default route** - the split `0.0.0.0/1` +
+`128.0.0.0/1` (+ IPv6 equivalent) technique wg-quick itself uses, which
+together cover the entire address space. Confirmed directly in
+`/var/log` (Status > System Logs in the UI): repeated
+`wg-service-control.php` errors like `route -q -n add -'inet'
+'0.0.0.0/1' -interface 'wg4'` returning exit code 1. Even though these
+specific attempts failed, three tunnels simultaneously fighting over the
+default route table is exactly the kind of thing that disrupts the
+router's real default route for everyone on the LAN, not just the
+tunnels' own VLANs.
+
+This directly contradicts what "Disable Routes: checked, Gateway: blank"
+being correct for VLAN401 established back in Section 27's own setup
+notes - that guidance was right, it just never got carried through to
+403-405 consistently when they were built (some via GUI, some via the
+`provision_vlan.php` script, which did not explicitly set
+`disableroutes`, defaulting to the field's own default of `0`/unchecked).
+
+**Fix:** check Disable Routes on every VLAN tunnel, no exceptions - this
+project's entire per-VLAN policy-routing design depends on traffic being
+routed *only* via the explicit gateway-pinned firewall rule (Section 9),
+never via a tunnel installing itself as a general default route. Verify
+directly rather than trust the GUI: `grep -A10 "<name>WG_VLAN40x</name>"
+/conf/config.xml | grep disableroutes` should show `1` for every tunnel,
+every time a new one is added.
+
+**Lesson for `provision_vlan.php`-style automation:** if reused for
+VLAN406+, add `disableroutes = 1` explicitly to the generated `<server>`
+XML rather than relying on it defaulting correctly - it does not.
+
+**A "No internet" label on an unrelated third device on the same LAN,
+even one never touched by any of today's changes, is a meaningful
+diagnostic signal** - it means the problem is network-wide (router-level),
+not specific to whichever single host happens to be reporting it. Confirmed
+here: after this fix, that device's Ethernet still showed "No internet" in
+Windows' UI, but a real `ping 8.8.8.8` from its own Command Prompt returned
+0% loss - the same cosmetic NCSI-label quirk documented in Section 27.3,
+not a genuine remaining problem. Always verify with a real ping/browse
+from the actual device in question, never trust the Windows status label
+alone, and never trust a ping run on the wrong machine (BSD-style
+`icmp_seq=0` output means it ran on OPNsense itself, not the Windows
+device being tested - a real mix-up that happened while chasing this).
+
+### 27.5 SancoverPC-5 "no internet" - two independent bugs stacked, plus a monitor-IP test-target trap (2026-08-02/03)
+
+Client reported the same "no internet" symptom on `SancoverPC-5` (the
+Location 2 host, Section 27.1) that had just been fixed on Kelder's
+`SancoverPC-4` (Section 26.12) - both the Windows host and the Zonclave VM
+showed no internet. This turned out to be **two separate, independent
+bugs** that both needed fixing, plus a false alarm from a poorly-chosen
+test IP that nearly masked the real fix working. Recorded in full because
+the false alarm alone cost real debugging time and will recur on any
+future site that reuses this project's monitor-IP convention (Section
+26.10) if someone tests connectivity with one of those exact addresses.
+
+**Bug 1 (Windows/Hyper-V side): the same switch-corruption pattern as
+Kelder.** `Get-NetIPAddress` showed the host's static IP had ended up on
+the **physical** NIC (`Ethernet 2`) instead of the `vEthernet (LAN-Switch)`
+adapter Hyper-V creates once that NIC is bound to an External switch - the
+same misplaced-IP class of issue as Section 27.3's finding 2, this time
+compounded by a missing default route on the vEthernet adapter and a stray
+leftover static IP (`192.168.1.6`) on the physical adapter (which had
+already self-cleared to APIPA by the time it was checked). Diagnosed with
+the same `ping -S <host-ip> <target>` source-bound test used throughout
+this project - `ping 192.168.1.4` (the VM) falsely looked fine for the same
+reason documented in Section 26.12 (Hyper-V can bridge host-VM traffic
+purely in software), while `ping -S 192.168.1.5 192.168.1.1` genuinely
+failed.
+
+**A genuine, non-obvious side-finding during this investigation:** the
+"PPSK-INT2 / 192.168.1.6" device seen in an earlier screenshot, initially
+assumed to be a *separate* third physical machine conflicting with this
+host, was actually **SancoverPC-5 itself** - confirmed by an exact MAC
+address match (`B0-41-6F-13-C6-A8`) on the freshly-recreated `vEthernet
+(LAN-Switch)` adapter after the rebuild below. Don't assume a second
+device name in a screenshot means a second device; check the MAC first.
+
+**Fix:** the identical clean switch rebuild that resolved Kelder (Section
+26.12) - `Disconnect-VMNetworkAdapter` -> `Remove-VMSwitch` ->
+`New-VMSwitch -NetAdapterName "Ethernet 2" -AllowManagementOS $true` ->
+`Connect-VMNetworkAdapter` -> reassign the static IP on the newly-created
+adapter (clearing the stale `DefaultGateway already exists` /
+`MSFT_NetIPAddress already exists` errors the same way as before) ->
+`Set-DnsClientServerAddress`. This fixed VM reachability and gateway
+reachability (`ping -S 192.168.1.5 192.168.1.1` clean) immediately, but,
+unlike Kelder, **did not by itself fix internet reachability** - see Bug 2.
+
+**Bug 2 (OPNsense side): the exact same `disableroutes` bug from Section
+27.4, but on `WG_VLAN401`/`WG_VLAN402` too.** Section 27.4's own writeup
+assumed 401/402 were fine because they were built first, via the GUI, with
+Disable Routes deliberately checked at the time. That assumption was never
+re-verified after the fact and turned out to be wrong: both had drifted
+to (or always genuinely had) `disableroutes = 0` in the live config, and
+`wg1` had actually installed the live split-default-route hijack
+(`0.0.0.0/1` + `128.0.0.0/1` via `netstat -rn`, both pointing at `wg1`) -
+meaning **all internet-bound traffic from this entire LAN, from any
+device, was being pulled into `WG_VLAN401`'s tunnel**, not just this one
+host. This is why the symptom looked host-specific at first (only PC5 was
+being actively tested) but was actually router-wide, the same lesson
+Section 27.4 already states about a "no internet" report on an unrelated
+device being a network-wide signal.
+
+Diagnosed via `pfctl -ss`/`pfctl -vvss` showing the outbound ICMP/UDP
+state's `origif: wg1` instead of `igb0`, and confirmed with `netstat -rn
+-f inet | grep -E "^0.0.0.0/1|^128.0.0.0/1"`. Fixed the same way as
+Section 27.4: `route delete -net 0.0.0.0/1` / `route delete -net
+128.0.0.0/1` to clear the live hijack immediately, then the same one-shot
+PHP `disableroutes = 1` fix extended to `WG_VLAN401`/`WG_VLAN402`,
+followed by `configctl wireguard configure`. **Section 27.4's own
+recommended verification step should be read as covering all five
+VLAN401-405 tunnels, not just whichever ones most recently misbehaved** -
+this bug is per-tunnel and silent until that tunnel happens to be
+enabled/reconfigured.
+
+**The false alarm: `8.8.8.8` is `GW_WG_VLAN401`'s own configured Monitor
+IP.** After both bugs above were genuinely fixed, `ping -S 192.168.1.5
+8.8.8.8` *still* failed - which looked like the fix hadn't worked. It had.
+`netstat -rn -f inet | grep 8.8.8.8` showed a `/32` host route for that
+exact address pointing at `wg1` via `10.10.20.1` - a gateway *monitor*
+route (the same mechanism as Section 26.10 finding 8 at Kelder), completely
+independent of the general default route and unaffected by the
+`disableroutes` fix. Location 2's five gateway monitors are `8.8.8.8`,
+`8.8.4.4`, `9.9.9.9`, `149.112.112.112`, `208.67.222.220` - all five are
+well-known public DNS resolver addresses. Testing with `1.1.1.1` (not one
+of the five) confirmed genuine internet connectivity immediately, 0% loss.
+
+**Lesson for testing on this network (and Kelder, which uses the identical
+monitor-IP scheme): never use a configured gateway Monitor IP as a general
+"is there internet" test target.** It will always route through that
+specific tunnel by design, regardless of whether general LAN routing is
+healthy or broken - a false negative if the tunnel is down, and in this
+case a false negative even with the tunnel up and genuinely fine, purely
+because the fix under test didn't touch host routes. Use an address that
+is provably not one of the five monitor IPs (`1.1.1.1` is safe on both
+Kelder and Location 2 as of this writing) for any general connectivity
+check. This also means: **if a real device on this LAN has its DNS server
+set to `8.8.8.8`, `8.8.4.4`, `9.9.9.9`, `149.112.112.112`, or
+`208.67.222.220`, its DNS resolution will silently and permanently route
+through that one VLAN's tunnel**, independent of which VLAN the device is
+actually on - worth checking if a future "internet works but browsing
+doesn't" report ever comes in at either site.

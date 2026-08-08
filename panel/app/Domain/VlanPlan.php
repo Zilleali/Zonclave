@@ -50,9 +50,12 @@ final class VlanPlan
     {
         $options = [];
 
-        foreach (ProvisionedVlan::query()->orderBy('vlan_id')->pluck('vlan_id') as $vlanId) {
-            $plan = self::forVlan((int) $vlanId);
-            $options[(int) $vlanId] = sprintf('VLAN %d (%s via %s)', $vlanId, $plan['subnet'], $plan['wireguard_interface']);
+        foreach (ProvisionedVlan::query()->orderBy('vlan_id')->get(['vlan_id', 'name']) as $vlan) {
+            $vlanId = (int) $vlan->vlan_id;
+            $plan = self::forVlan($vlanId);
+            $options[$vlanId] = $vlan->name
+                ? sprintf('%s - VLAN %d (%s via %s)', $vlan->name, $vlanId, $plan['subnet'], $plan['wireguard_interface'])
+                : sprintf('VLAN %d (%s via %s)', $vlanId, $plan['subnet'], $plan['wireguard_interface']);
         }
 
         return $options;

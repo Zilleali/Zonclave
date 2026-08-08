@@ -1,12 +1,13 @@
 // Decorative cursor trail: a small number of spring-linked "worms" that
 // chase the mouse and are drawn additively for a soft glowing trail.
 // Vanilla JS, no build step (this repo ships public/ assets unbundled -
-// see public/css/public.css's own comment on why). Shared by both the
-// public site and the admin panel; each page includes this file directly
-// and can set window.zcCursorTrail* globals before it loads to pick its
-// own look - color, worm count, spring stiffness (speed), and line width -
-// so the admin panel can run a slower, more minimal variant than the
-// public site's fuller effect without a second copy of this file.
+// see public/css/public.css's own comment on why). Public site only
+// (client request 2026-08-08: removed from the admin panel) - included
+// via resources/views/layouts/public.blade.php. Configurable via
+// window.zcCursorTrail* globals set before this loads - color, worm
+// count, spring stiffness (speed), and line width - kept generic in case
+// a future page wants a different look, not because two surfaces use it
+// today.
 //
 // Skipped entirely when the user prefers reduced motion, or when the
 // primary input has no real pointer (touch-only devices) - a mouse trail

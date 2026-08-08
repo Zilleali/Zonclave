@@ -87,10 +87,6 @@ class AdminPanelProvider extends PanelProvider
                 fn (): View => view('filament.clipboard-script'),
             )
             ->renderHook(
-                PanelsRenderHook::SCRIPTS_AFTER,
-                fn (): View => view('filament.cursor-trail'),
-            )
-            ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn (): View => view('filament.theme-enhancements'),
             )

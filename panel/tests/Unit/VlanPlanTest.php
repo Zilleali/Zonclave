@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use App\Domain\VlanPlan;
+use App\Models\ProvisionedVlan;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use Tests\TestCase;
@@ -57,5 +58,16 @@ class VlanPlanTest extends TestCase
 
         $this->assertSame([300, 301, 302, 303, 304], array_keys($options));
         $this->assertStringContainsString('10.30.0.0/24', $options[300]);
+    }
+
+    public function test_options_puts_the_friendly_name_first_when_set(): void
+    {
+        ProvisionedVlan::query()->where('vlan_id', 300)->update(['name' => 'Office main']);
+
+        $options = VlanPlan::options();
+
+        $this->assertSame('Office main - VLAN 300 (10.30.0.0/24 via WG_VLAN300)', $options[300]);
+        $this->assertStringContainsString('VLAN 301 (10.30.1.0/24', $options[301]);
+        $this->assertStringNotContainsString(' - VLAN 301', $options[301]);
     }
 }

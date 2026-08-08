@@ -37,9 +37,14 @@ class ListProvisionedVlans extends ListRecords
                             '%d to 4094 (802.1Q range). Subnet, WireGuard tunnel, and gateway names are derived automatically.',
                             (int) config('zonclave.vlan_base'),
                         )),
+                    TextInput::make('name')
+                        ->label('Friendly name')
+                        ->maxLength(64)
+                        ->helperText('Optional - a plain-language label so you can tell VLANs apart at a glance (e.g. "Office main", "France exits"). Purely a display label, no effect on subnet/tunnel/gateway naming.'),
                 ])
                 ->using(fn (array $data): ProvisionedVlan => app(ProvisionedVlanService::class)->provision(
                     (int) $data['vlan_id'],
+                    $data['name'] ?: null,
                     Filament::auth()->user()?->getAttribute('email'),
                 )),
         ];

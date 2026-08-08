@@ -17,6 +17,7 @@ class ProvisionedVlan extends Model
 
     protected $fillable = [
         'vlan_id',
+        'name',
     ];
 
     protected function casts(): array

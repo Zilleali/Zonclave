@@ -21,6 +21,7 @@ enum AdminLogAction: string
     case PpskPasswordRegenerated = 'ppsk_password_regenerated';
     case TunnelEgressIpUpdated = 'tunnel_egress_ip_updated';
     case VlanProvisioned = 'vlan_provisioned';
+    case VlanRenamed = 'vlan_renamed';
     case VlanDeprovisioned = 'vlan_deprovisioned';
     case BackupCreated = 'backup_created';
     case BackupDeleted = 'backup_deleted';
@@ -39,6 +40,7 @@ enum AdminLogAction: string
             self::PpskPasswordRegenerated => 'PPSK password regenerated',
             self::TunnelEgressIpUpdated => 'Tunnel egress IP updated',
             self::VlanProvisioned => 'VLAN added',
+            self::VlanRenamed => 'VLAN renamed',
             self::VlanDeprovisioned => 'VLAN deleted',
             self::BackupCreated => 'Backup created',
             self::BackupDeleted => 'Backup deleted',
@@ -71,6 +73,7 @@ enum AdminLogAction: string
             self::PpskPasswordRegenerated => 'heroicon-o-arrow-path',
             self::TunnelEgressIpUpdated => 'heroicon-o-globe-alt',
             self::VlanProvisioned => 'heroicon-o-rectangle-group',
+            self::VlanRenamed => 'heroicon-o-pencil-square',
             self::VlanDeprovisioned => 'heroicon-o-trash',
             self::BackupCreated => 'heroicon-o-archive-box',
             self::BackupDeleted => 'heroicon-o-trash',

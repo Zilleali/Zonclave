@@ -28,13 +28,44 @@ class ProvisionedVlanServiceTest extends TestCase
 
     public function test_provision_creates_a_vlan_and_logs_it(): void
     {
-        $vlan = $this->service()->provision(305, 'admin@test');
+        $vlan = $this->service()->provision(305, null, 'admin@test');
 
         $this->assertSame(305, $vlan->vlan_id);
+        $this->assertNull($vlan->name);
         $this->assertSame(1, AdminLog::query()
             ->where('action', AdminLogAction::VlanProvisioned->value)
             ->where('admin_user', 'admin@test')
             ->count());
+    }
+
+    public function test_provision_accepts_an_optional_friendly_name(): void
+    {
+        $vlan = $this->service()->provision(306, 'Office main', 'admin@test');
+
+        $this->assertSame('Office main', $vlan->fresh()->name);
+    }
+
+    public function test_rename_updates_the_name_and_logs_it(): void
+    {
+        $vlan = ProvisionedVlan::query()->where('vlan_id', 300)->firstOrFail();
+
+        $this->service()->rename($vlan, 'France exits', 'admin@test');
+
+        $this->assertSame('France exits', $vlan->fresh()->name);
+        $this->assertSame(1, AdminLog::query()
+            ->where('action', AdminLogAction::VlanRenamed->value)
+            ->where('admin_user', 'admin@test')
+            ->count());
+    }
+
+    public function test_rename_can_clear_the_name(): void
+    {
+        $vlan = ProvisionedVlan::query()->where('vlan_id', 300)->firstOrFail();
+        $vlan->update(['name' => 'Old name']);
+
+        $this->service()->rename($vlan, null, 'admin@test');
+
+        $this->assertNull($vlan->fresh()->name);
     }
 
     public function test_deprovision_removes_an_unused_vlan_and_its_egress_ip_reference(): void

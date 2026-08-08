@@ -23,12 +23,15 @@ class ProvisionedVlanService
         private readonly BackupService $backups,
     ) {}
 
-    public function provision(int $vlanId, ?string $adminUser): ProvisionedVlan
+    public function provision(int $vlanId, ?string $name, ?string $adminUser): ProvisionedVlan
     {
-        $vlan = DB::transaction(function () use ($vlanId, $adminUser): ProvisionedVlan {
-            $vlan = ProvisionedVlan::query()->create(['vlan_id' => $vlanId]);
+        $vlan = DB::transaction(function () use ($vlanId, $name, $adminUser): ProvisionedVlan {
+            $vlan = ProvisionedVlan::query()->create(['vlan_id' => $vlanId, 'name' => $name]);
 
-            $this->auditLog->log(AdminLogAction::VlanProvisioned, $adminUser, null, sprintf('VLAN %d', $vlanId));
+            $detail = $name !== null && $name !== ''
+                ? sprintf('VLAN %d (%s)', $vlanId, $name)
+                : sprintf('VLAN %d', $vlanId);
+            $this->auditLog->log(AdminLogAction::VlanProvisioned, $adminUser, null, $detail);
 
             return $vlan;
         });
@@ -37,6 +40,20 @@ class ProvisionedVlanService
         // (Section 16.8, client request: back up after a significant
         // registry change, not just on the daily schedule).
         $this->backups->maybeAutoBackup($adminUser);
+
+        return $vlan;
+    }
+
+    public function rename(ProvisionedVlan $vlan, ?string $name, ?string $adminUser): ProvisionedVlan
+    {
+        DB::transaction(function () use ($vlan, $name, $adminUser): void {
+            $vlan->update(['name' => $name]);
+
+            $detail = $name !== null && $name !== ''
+                ? sprintf('VLAN %d -> "%s"', $vlan->vlan_id, $name)
+                : sprintf('VLAN %d -> (name cleared)', $vlan->vlan_id);
+            $this->auditLog->log(AdminLogAction::VlanRenamed, $adminUser, null, $detail);
+        });
 
         return $vlan;
     }

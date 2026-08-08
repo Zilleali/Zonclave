@@ -67,5 +67,7 @@
                 <x-social-links />
             </div>
         </footer>
+
+        <script src="{{ asset('js/cursor-trail.js') }}"></script>
     </body>
 </html>

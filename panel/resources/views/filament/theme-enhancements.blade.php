@@ -93,12 +93,23 @@
     body::before {
         content: "";
         position: fixed;
-        inset: 0;
+        inset: -10%;
         z-index: -1;
         pointer-events: none;
         background:
             radial-gradient(640px circle at 12% 8%, var(--zc-wash-a), transparent 60%),
             radial-gradient(560px circle at 88% 28%, var(--zc-wash-b), transparent 60%);
+        animation: zc-wash-drift 18s ease-in-out infinite alternate;
+    }
+
+    @keyframes zc-wash-drift {
+        0% {
+            transform: translate(0, 0);
+        }
+
+        100% {
+            transform: translate(3%, -3%);
+        }
     }
 
     /* Elevation via a lighter fill plus a deliberately deep drop shadow -
@@ -569,6 +580,10 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
+
+        body::before {
+            animation: none;
+        }
 
         .fi-section,
         .fi-wi-widget,

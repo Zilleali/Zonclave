@@ -53,12 +53,51 @@
 }
 
 body {
+    position: relative;
     margin: 0;
     background: var(--bg);
     color: var(--text);
     font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+}
+
+/* Ambient drifting gradient wash - a soft, blurred radial-gradient blob
+   slowly floating behind the page content, using this site's own
+   accent/secondary palette rather than a new color scheme. Fixed and
+   pointer-events:none so it never affects layout or interaction; blurred
+   heavily so it reads as a soft glow, not a visible shape. */
+body::before {
+    content: "";
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    z-index: -1;
+    pointer-events: none;
+    filter: blur(90px);
+    background:
+        radial-gradient(circle at 30% 30%, rgba(56, 189, 248, 0.16), transparent 55%),
+        radial-gradient(circle at 70% 70%, rgba(52, 211, 153, 0.12), transparent 50%);
+    animation: zc-wash-drift 16s ease-in-out infinite alternate;
+}
+
+@keyframes zc-wash-drift {
+    0% {
+        transform: translate(0, 0);
+    }
+
+    100% {
+        transform: translate(8%, -8%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body::before {
+        animation: none;
+    }
 }
 
 a {

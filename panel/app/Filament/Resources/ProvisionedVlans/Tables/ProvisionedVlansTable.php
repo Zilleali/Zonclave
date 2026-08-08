@@ -10,7 +10,9 @@ use App\Models\PpskGroup;
 use App\Models\ProvisionedVlan;
 use App\Services\ProvisionedVlanService;
 use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -28,6 +30,11 @@ class ProvisionedVlansTable
             ->defaultSort('vlan_id', 'asc')
             ->columns([
                 TextColumn::make('vlan_id')->label('VLAN')->sortable(),
+                TextColumn::make('name')
+                    ->label('Name')
+                    ->placeholder('-')
+                    ->searchable()
+                    ->toggleable(),
                 TextColumn::make('subnet')
                     ->state(fn (ProvisionedVlan $record): string => VlanPlan::forVlan($record->vlan_id)['subnet'])
                     ->toggleable(),
@@ -48,6 +55,22 @@ class ProvisionedVlansTable
                 TextColumn::make('created_at')->label('Added')->dateTime()->sortable()->toggleable(),
             ])
             ->recordActions([
+                EditAction::make()
+                    ->label('Rename')
+                    ->modalHeading(fn (ProvisionedVlan $record): string => sprintf('Rename VLAN %d', $record->vlan_id))
+                    ->schema([
+                        TextInput::make('name')
+                            ->label('Friendly name')
+                            ->maxLength(64)
+                            ->helperText('Optional - a plain-language label so you can tell VLANs apart at a glance (e.g. "Office main", "France exits").'),
+                    ])
+                    ->using(function (ProvisionedVlan $record, array $data): ProvisionedVlan {
+                        return app(ProvisionedVlanService::class)->rename(
+                            $record,
+                            $data['name'] ?: null,
+                            Filament::auth()->user()?->getAttribute('email'),
+                        );
+                    }),
                 DeleteAction::make()
                     ->successNotification(null)
                     ->using(function (ProvisionedVlan $record): void {
